@@ -1,0 +1,40 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load data
+
+```{r}
+
+df <- read.csv("~/WGCNA-Practice/data/forCorrelation.csv", header = TRUE)
+rownames(df) <- df[, 1]
+df <- df[, -1]
+View(df)
+```
+
+# Correlations and Transformations
+
+```{r}
+# Calculate correlations
+cor_df <- cor(t(df[, ]), method = "pearson")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
