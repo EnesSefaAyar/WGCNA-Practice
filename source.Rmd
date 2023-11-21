@@ -1,40 +1,115 @@
 ---
 output: html_document
 editor_options: 
-  chunk_output_type: console
+chunk_output_type: console
 ---
+
+# Install
+
+```{r}
+install.packages('WGCNA')
+BiocManager::install("UniProt.ws")
+install.packages("enrichR")
+```
+
+# Import
+
+```{r}
+library(WGCNA)
+library(scp)
+library(scpdata)
+library(ggplot2)
+library(gridExtra)
+library(UniProt.ws)
+library(enrichR)
+```
 
 # Load data
 
 ```{r}
+scp <- specht2019v2()
+df <- assay(scp[["proteins"]])
 
-df <- read.csv("~/WGCNA-Practice/data/forCorrelation.csv", header = TRUE)
-rownames(df) <- df[, 1]
-df <- df[, -1]
+(colData(scp[["proteins"]]))
+
+# Explore
+dim(df)
+class(df)
 View(df)
+df[, 1]
+hist(df[, 3])
+apply(df, 2, hist)
 ```
 
-# Correlations and Transformations
+# Soft Threshold
 
 ```{r}
-# Calculate correlations
-cor_df <- cor(t(df[, ]), method = "pearson")
 
+powers <- c(seq(from = 1, to = 50, by = 1))
+sft <- pickSoftThreshold(t(df),
+                  powerVector = powers,
+                  networkType = "signed",
+                  verbose = 5)
+
+sft_data <- sft$fitIndices
+
+p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
+  geom_point() +
+  geom_hline(yintercept = 0.8, color = "red") +
+  labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
+  theme_classic()
+
+p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
+  geom_point() +
+  geom_text(nudge_y = 0.1) +
+  labs(x = "Power", y = "Mean Connectivity") +
+  theme_classic()
+
+grid.arrange(p1, p2)
 
 ```
 
+# Module detection
 
+```{r}
+soft_power <- sft$powerEstimate
+temp_cor <- cor
+cor <- WGCNA::cor
 
+bwnet <- blockwiseModules(t(df), maxBlockSize = nrow(df)%/%10, TOMType = "signed",
+                 power = soft_power,
+                 mergeCutHeight = 0.25,
+                 numericLabels = FALSE,
+                 verbose = 3)
 
+plotDendroAndColors(bwnet$dendrograms[[1]],
+                    colors = labels2colors(bwnet$colors)[bwnet$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+```
 
+# Enrichment
 
+```{r}
+table(bwnet$colors)
 
+clusters <- as.data.frame(bwnet$colors)
 
+cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "yellow"]
 
+# Map to Gene names
+up <- UniProt.ws(taxId=9606)
+res <- select(
+    x = up,
+    keys = cluster_members,
+    to = "Gene_Name"
+)
 
+# List of databases: View(listEnrichrDbs())
 
-
-
-
-
+dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+enriched <- enrichr(res$To, dbs)
+plotEnrich(enriched[[3]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+```
 
