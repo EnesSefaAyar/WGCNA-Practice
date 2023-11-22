@@ -27,11 +27,20 @@ library(enrichR)
 # Load data
 
 ```{r}
-scp <- specht2019v2()
+scpdata()
+
+scp <- specht2019v3()
 df <- assay(scp[["proteins"]])
 
-(colData(scp[["proteins"]]))
+# Subset same type of cells
+scp_sub <- scp
+condition <- scp[["proteins"]]$SampleType == "Macrophage" & scp[["proteins"]]$lcbatch == "LCB7"
 
+scp_sub[["proteins"]] <- scp[["proteins"]][, condition]
+
+dim(scp_sub[["proteins"]])
+
+df <- assay(scp_sub[["proteins"]])
 # Explore
 dim(df)
 class(df)
@@ -76,11 +85,14 @@ soft_power <- sft$powerEstimate
 temp_cor <- cor
 cor <- WGCNA::cor
 
-bwnet <- blockwiseModules(t(df), maxBlockSize = nrow(df)%/%10, TOMType = "signed",
-                 power = soft_power,
-                 mergeCutHeight = 0.25,
-                 numericLabels = FALSE,
-                 verbose = 3)
+bwnet <- blockwiseModules(t(df), 
+                          corType = "bicor",
+                          minModuleSize = 30,
+                          TOMType = "signed",
+                          power = soft_power,
+                          mergeCutHeight = 0.25,
+                          numericLabels = FALSE,
+                          verbose = 3)
 
 plotDendroAndColors(bwnet$dendrograms[[1]],
                     colors = labels2colors(bwnet$colors)[bwnet$blockGenes[[1]]],
@@ -92,14 +104,17 @@ plotDendroAndColors(bwnet$dendrograms[[1]],
 # Enrichment
 
 ```{r}
+
+bwnet
+
 table(bwnet$colors)
 
 clusters <- as.data.frame(bwnet$colors)
 
-cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "yellow"]
-
+cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "blue"]
+length(cluster_members)
 # Map to Gene names
-up <- UniProt.ws(taxId=9606)
+up <- UniProt.ws(taxId = 9606)
 res <- select(
     x = up,
     keys = cluster_members,
@@ -107,9 +122,10 @@ res <- select(
 )
 
 # List of databases: View(listEnrichrDbs())
+View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
-plotEnrich(enriched[[3]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
 

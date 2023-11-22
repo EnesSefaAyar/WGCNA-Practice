@@ -1,0 +1,109 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+chunk_output_type: console
+---
+
+# Install
+
+```{r}
+install.packages("textshape")
+install.packages("pheatmap")
+BiocManager::install("UniProt.ws")
+install.packages("enrichR")
+```
+
+# Import
+
+```{r}
+library(textshape)
+library(pheatmap)
+library(UniProt.ws)
+library(enrichR)
+library(scp)
+library(scpdata)
+```
+
+# Load data
+
+```{r}
+scpdata()
+
+scp <- specht2019v3()
+
+# Subset same type of cells
+scp_sub <- scp
+condition <- scp[["proteins"]]$SampleType == "Macrophage" & scp[["proteins"]]$lcbatch == "LCB7"
+
+scp_sub[["proteins"]] <- scp[["proteins"]][, condition]
+
+dim(scp_sub[["proteins"]])
+
+df <- assay(scp_sub[["proteins"]])
+# Explore
+# dim(df)
+# class(df)
+# View(df)
+# df[, 1]
+# hist(df[, 3])
+# apply(df, 2, hist)
+```
+
+# Calculate correlations
+
+```{r}
+cor_df <- cor(t(df[, ]), method = "pearson")
+
+# Cluster and order the data frame
+ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
+
+# Plot the heat-map
+pheatmap(ordered_cor_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = FALSE, 
+         show_rownames = FALSE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 1, cellheight = 1,
+         fontfamily = 'sans', fontsize = 10)
+```
+
+# Identify Clusters
+
+```{r}
+n_clusters <- 10
+
+distance_df <- 1 - cor_df
+
+tree <- hclust(as.dist(distance_df), method = "average")
+
+memberships <- cutree(tree, h = 0.95)
+
+memberships <- as.data.frame(memberships)
+```
+
+# Enrichment
+
+```{r}
+# Choose a cluster
+table(memberships)
+
+cluster_members <- rownames(memberships)[memberships$memberships == 2]
+
+length(cluster_members)
+
+# Map to Gene names
+up <- UniProt.ws(taxId=9606)
+res <- select(
+    x = up,
+    keys = cluster_members,
+    to = "Gene_Name"
+)
+
+# List of databases: View(listEnrichrDbs())
+
+dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+enriched <- enrichr(res$To, dbs)
+plotEnrich(enriched[[3]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+```
