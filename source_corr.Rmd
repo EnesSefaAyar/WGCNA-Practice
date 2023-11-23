@@ -1,7 +1,6 @@
 ---
 output: html_document
 editor_options: 
-  chunk_output_type: console
 chunk_output_type: console
 ---
 
@@ -25,6 +24,7 @@ library(enrichR)
 library(scp)
 library(scpdata)
 library(dynamicTreeCut)
+library(Hmisc)
 ```
 
 # Load data
@@ -52,7 +52,20 @@ apply(df, 2, hist)
 # Calculate correlations
 
 ```{r}
-cor_df <- cor(t(df[, ]), method = "pearson")
+corr <- rcorr(t(df[, ]), type = "pearson")
+
+cor_df <- corr$r
+p_vals <- corr$P < 0.05
+p_vals <- replace(p_vals, is.na(p_vals), TRUE)
+
+cor_df <- cor_df[colMeans(p_vals) > 0.05, colMeans(p_vals) > 0.05]
+
+# apply(as.data.frame(apply(abs(cor_df), 2, sd)), breaks = 40, 2, hist)
+
+# Filter some proteins
+condition <- apply(abs(cor_df), 2, sd) > 0.05
+cor_df <- cor_df[condition, condition]
+dim(cor_df)
 
 # Cluster and order the data frame
 ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
@@ -64,7 +77,7 @@ pheatmap(ordered_cor_df,
          border_color = NA,legend = FALSE, show_colnames = FALSE, 
          show_rownames = FALSE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 1, cellheight = 1,
+         cellwidth = 0.15, cellheight = 0.15,
          fontfamily = 'sans', fontsize = 10)
 ```
 
@@ -86,22 +99,22 @@ memberships <- as.data.frame(memberships)
 # Choose a cluster
 table(memberships)
 
-cluster_members <- rownames(df)[memberships$memberships == 3]
+cluster_members <- rownames(cor_df)[memberships$memberships == 3]
 
 length(cluster_members)
 
 # Map to Gene names
-up <- UniProt.ws(taxId=9606)
+up <- UniProt.ws(taxId = 9606)
 res <- select(
     x = up,
     keys = cluster_members,
     to = "Gene_Name"
 )
 
-
 # List of databases: View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
-plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+plotEnrich(enriched[[1]], showTerms = 10,
+           numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
