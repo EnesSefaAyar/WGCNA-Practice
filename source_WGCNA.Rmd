@@ -27,25 +27,20 @@ library(enrichR)
 # Load data
 
 ```{r}
-scpdata()
+View(as.data.frame(scpdata())) # Available data sets
 
-scp <- specht2019v3()
-df <- assay(scp[["proteins"]])
+scp <- specht2019v3() # Load specific data set
 
-# Subset same type of cells
-scp_sub <- scp
+# Subset samples by cell type/batch
 condition <- scp[["proteins"]]$SampleType == "Macrophage" & scp[["proteins"]]$lcbatch == "LCB7"
-
+scp_sub <- scp
 scp_sub[["proteins"]] <- scp[["proteins"]][, condition]
 
-dim(scp_sub[["proteins"]])
+dim(scp_sub[["proteins"]]) # check dimensions
 
 df <- assay(scp_sub[["proteins"]])
+
 # Explore
-dim(df)
-class(df)
-View(df)
-df[, 1]
 hist(df[, 3])
 apply(df, 2, hist)
 ```
@@ -53,8 +48,7 @@ apply(df, 2, hist)
 # Soft Threshold
 
 ```{r}
-
-powers <- c(seq(from = 1, to = 50, by = 1))
+powers <- c(seq(from = 1, to = 10, by = 0.1))
 sft <- pickSoftThreshold(t(df),
                   powerVector = powers,
                   networkType = "signed",
@@ -81,7 +75,7 @@ grid.arrange(p1, p2)
 # Module detection
 
 ```{r}
-soft_power <- sft$powerEstimate
+soft_power <- sft$powerEstimate # Default estimation
 temp_cor <- cor
 cor <- WGCNA::cor
 
@@ -95,7 +89,7 @@ bwnet <- blockwiseModules(t(df),
                           verbose = 3)
 
 plotDendroAndColors(bwnet$dendrograms[[1]],
-                    colors = labels2colors(bwnet$colors)[bwnet$blockGenes[[1]]],
+                    colors = labels2colors(bwnet$colors),
                     "Module colors",
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05)
@@ -104,14 +98,12 @@ plotDendroAndColors(bwnet$dendrograms[[1]],
 # Enrichment
 
 ```{r}
-
-bwnet
-
 table(bwnet$colors)
 
 clusters <- as.data.frame(bwnet$colors)
 
-cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "blue"]
+cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "brown"]
+
 length(cluster_members)
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -121,8 +113,8 @@ res <- select(
     to = "Gene_Name"
 )
 
-# List of databases: View(listEnrichrDbs())
-View(listEnrichrDbs())
+# List of databases
+# View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
