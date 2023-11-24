@@ -6,7 +6,7 @@ chunk_output_type: console
 
 # Install
 
-```{r}
+```{r. eval = FALSE}
 install.packages("textshape")
 install.packages("pheatmap")
 BiocManager::install("UniProt.ws")
@@ -30,55 +30,51 @@ library(Hmisc)
 # Load data
 
 ```{r}
-View(as.data.frame(scpdata())) # Available data sets
+# View(as.data.frame(scpdata())) # Available data sets
 
 scp <- specht2019v3() # Load specific data set
 
 # Subset same type of cells
-scp_sub <- scp
-condition <- scp[["proteins"]]$SampleType == "Macrophage" & scp[["proteins"]]$lcbatch == "LCB7"
 
-scp_sub[["proteins"]] <- scp[["proteins"]][, condition]
+scp_sub <- getWithColData(scp, "proteins")
+scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
 
-dim(scp_sub[["proteins"]])
+dim(scp_sub) # check dimensions
 
-df <- assay(scp_sub[["proteins"]])
+df_CPM <- assay(scp_sub[["proteins"]])
 
 # Explore
-hist(df[, 3])
-apply(df, 2, hist)
+# hist(df_CPM[, 3])
+# apply(df_CPM, 2, hist)
 ```
 
 # Calculate correlations
 
 ```{r}
-corr <- rcorr(t(df[, ]), type = "pearson")
+corr <- rcorr(t(df_CPM[, ]), type = "pearson")
 
 cor_df <- corr$r
-p_vals <- corr$P < 0.05
-p_vals <- replace(p_vals, is.na(p_vals), TRUE)
-
-cor_df <- cor_df[colMeans(p_vals) > 0.05, colMeans(p_vals) > 0.05]
-
+cor_df[corr$P > 0.01 & abs(corr$r) > 0.3] <- 0
+  
 # apply(as.data.frame(apply(abs(cor_df), 2, sd)), breaks = 40, 2, hist)
 
 # Filter some proteins
-condition <- apply(abs(cor_df), 2, sd) > 0.05
-cor_df <- cor_df[condition, condition]
-dim(cor_df)
+# condition <- apply(abs(cor_df), 2, sd) > 0.01
+# cor_df <- cor_df[condition, condition]
+# dim(cor_df)
 
 # Cluster and order the data frame
-ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
+# ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
 
 # Plot the heat-map
-pheatmap(ordered_cor_df,
-         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-         breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = FALSE, 
-         show_rownames = FALSE,
-         cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 0.15, cellheight = 0.15,
-         fontfamily = 'sans', fontsize = 10)
+# pheatmap(ordered_cor_df,
+#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+#          breaks = seq(from = -1, to = 1, length.out = 101),
+#          border_color = NA,legend = FALSE, show_colnames = FALSE, 
+#          show_rownames = FALSE,
+#          cluster_rows = FALSE, cluster_cols = FALSE,
+#          cellwidth = 0.15, cellheight = 0.15,
+#          fontfamily = 'sans', fontsize = 10)
 ```
 
 # Identify Clusters
@@ -88,33 +84,33 @@ distance_df <- 1 - cor_df
 
 tree <- hclust(as.dist(distance_df), method = "average")
 
-memberships <- cutreeDynamic(tree, minClusterSize = 30)
+memberships_CPM <- cutreeDynamic(tree, minClusterSize = 30)
 
-memberships <- as.data.frame(memberships)
+memberships_CPM <- as.data.frame(memberships_CPM)
 ```
 
 # Enrichment
 
 ```{r}
 # Choose a cluster
-table(memberships)
+# table(memberships_CPM)
+# 
+# cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 3]
 
-cluster_members <- rownames(cor_df)[memberships$memberships == 3]
-
-length(cluster_members)
-
-# Map to Gene names
-up <- UniProt.ws(taxId = 9606)
-res <- select(
-    x = up,
-    keys = cluster_members,
-    to = "Gene_Name"
-)
-
-# List of databases: View(listEnrichrDbs())
-
-dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
-enriched <- enrichr(res$To, dbs)
-plotEnrich(enriched[[1]], showTerms = 10,
-           numChar = 40, y = "Ratio", orderBy = "P.value")
+# length(cluster_members_CPM)
+# 
+# # Map to Gene names
+# up <- UniProt.ws(taxId = 9606)
+# res <- select(
+#     x = up,
+#     keys = cluster_members_CPM,
+#     to = "Gene_Name"
+# )
+# 
+# # List of databases: View(listEnrichrDbs())
+# 
+# dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+# enriched <- enrichr(res$To, dbs)
+# plotEnrich(enriched[[1]], showTerms = 10,
+#            numChar = 40, y = "Ratio", orderBy = "P.value")
 ```

@@ -6,8 +6,8 @@ chunk_output_type: console
 
 # Install
 
-```{r}
-install.packages('WGCNA')
+```{r. eval = FALSE}
+install.packages('WGCNA')n 
 BiocManager::install("UniProt.ws")
 install.packages("enrichR")
 ```
@@ -27,48 +27,48 @@ library(enrichR)
 # Load data
 
 ```{r}
-View(as.data.frame(scpdata())) # Available data sets
+# View(as.data.frame(scpdata())) # Available data sets
 
 scp <- specht2019v3() # Load specific data set
 
 # Subset samples by cell type/batch
-condition <- scp[["proteins"]]$SampleType == "Macrophage" & scp[["proteins"]]$lcbatch == "LCB7"
-scp_sub <- scp
-scp_sub[["proteins"]] <- scp[["proteins"]][, condition]
 
-dim(scp_sub[["proteins"]]) # check dimensions
+scp_sub <- getWithColData(scp, "proteins")
+scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
 
-df <- assay(scp_sub[["proteins"]])
+dim(scp_sub) # check dimensions
+
+df_WGCNA <- assay(scp_sub)
 
 # Explore
-hist(df[, 3])
-apply(df, 2, hist)
+# hist(df_WGCNA[, 3])
+# apply(df_WGCNA, 2, hist)
 ```
 
 # Soft Threshold
 
 ```{r}
 powers <- c(seq(from = 1, to = 10, by = 0.1))
-sft <- pickSoftThreshold(t(df),
+sft <- pickSoftThreshold(t(df_WGCNA),
                   powerVector = powers,
                   networkType = "signed",
                   verbose = 5)
 
-sft_data <- sft$fitIndices
-
-p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
-  geom_point() +
-  geom_hline(yintercept = 0.8, color = "red") +
-  labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
-  theme_classic()
-
-p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
-  geom_point() +
-  geom_text(nudge_y = 0.1) +
-  labs(x = "Power", y = "Mean Connectivity") +
-  theme_classic()
-
-grid.arrange(p1, p2)
+# sft_data <- sft$fitIndices
+# 
+# p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
+#   geom_point() +
+#   geom_hline(yintercept = 0.8, color = "red") +
+#   labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
+#   theme_classic()
+# 
+# p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
+#   geom_point() +
+#   geom_text(nudge_y = 0.1) +
+#   labs(x = "Power", y = "Mean Connectivity") +
+#   theme_classic()
+# 
+# grid.arrange(p1, p2)
 
 ```
 
@@ -79,7 +79,7 @@ soft_power <- sft$powerEstimate # Default estimation
 temp_cor <- cor
 cor <- WGCNA::cor
 
-bwnet <- blockwiseModules(t(df), 
+bwnet <- blockwiseModules(t(df_WGCNA), 
                           corType = "bicor",
                           minModuleSize = 30,
                           TOMType = "signed",
@@ -100,16 +100,16 @@ plotDendroAndColors(bwnet$dendrograms[[1]],
 ```{r}
 table(bwnet$colors)
 
-clusters <- as.data.frame(bwnet$colors)
+clusters_WGCNA <- as.data.frame(bwnet$colors)
 
-cluster_members <- rownames(clusters)[clusters$`bwnet$colors` == "brown"]
-
-length(cluster_members)
-# Map to Gene names
+cluster_members_WGCNA <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == "brown"]
+# 
+# length(cluster_members_WGCNA)
+# # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
 res <- select(
     x = up,
-    keys = cluster_members,
+    keys = cluster_members_WGCNA,
     to = "Gene_Name"
 )
 
@@ -117,7 +117,8 @@ res <- select(
 # View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
-enriched <- enrichr(res$To, dbs)
-plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+enriched_WGCNA <- enrichr(res$To, dbs)
+plotEnrich(enriched_WGCNA[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+
 ```
 

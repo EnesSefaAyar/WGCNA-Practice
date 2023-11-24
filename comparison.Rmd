@@ -1,0 +1,89 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Cluster tables
+
+```{r}
+table(memberships_CPM)
+table(clusters_WGCNA)
+```
+
+```{r}
+library(textshape)
+library(pheatmap)
+library(UniProt.ws)
+library(enrichR)
+library(scp)
+library(scpdata)
+library(dynamicTreeCut)
+library(Hmisc)
+```
+
+
+
+# Jaccard index btw pairs
+
+```{r}
+jaccard <- function(a, b) {
+    union <- length(a) + length(b) - length(intersect(a, b))
+    return (length(intersect(a, b))/union)
+}
+
+matching_clust_num <- min(length(rownames(table(clusters_WGCNA))) - 1,
+                          length(rownames(table(memberships_CPM))) -1)
+
+indices <- c()
+matches <- c()
+
+for (i in rownames(table(memberships_CPM))) {
+  for (j in rownames(table(clusters_WGCNA))) {
+    members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == i]
+    members_WGCNA <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == j]
+    # Calculate Jaccard index
+    j_index <- jaccard(members_CPM, members_WGCNA)
+    indices <- c(indices, j_index)
+    matches <- c(matches, paste(i,j))
+  }
+}
+
+for (i in c(1:2)) {
+  clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
+  CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
+  WGCNA_proteins <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == clusts[2]]
+  inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
+  print(length(inter_mem))
+  print(max(indices))
+  indices <- indices[-which.max(indices)]
+}
+
+inter_mem
+
+# # Map to Gene names
+up <- UniProt.ws(taxId = 9606)
+res <- select(
+    x = up,
+    keys = inter_mem,
+    to = "Gene_Name"
+)
+
+# List of databases
+# View(listEnrichrDbs())
+
+res$To
+dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+enriched <- enrichr(res$To, dbs)
+
+plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+```
+
+
+
+
+
+
+
+
+
