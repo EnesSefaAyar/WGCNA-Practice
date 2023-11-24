@@ -29,7 +29,7 @@ library(Hmisc)
 ```{r}
 jaccard <- function(a, b) {
     union <- length(a) + length(b) - length(intersect(a, b))
-    return (length(intersect(a, b))/union)
+    return ((length(intersect(a, b)))/union)
 }
 
 matching_clust_num <- min(length(rownames(table(clusters_WGCNA))) - 1,
@@ -59,8 +59,6 @@ for (i in c(1:2)) {
   indices <- indices[-which.max(indices)]
 }
 
-inter_mem
-
 # # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
 res <- select(
@@ -72,11 +70,11 @@ res <- select(
 # List of databases
 # View(listEnrichrDbs())
 
-res$To
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
-
+enriched
 plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+sessionInfo()
 ```
 
 

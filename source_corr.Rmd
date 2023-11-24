@@ -93,10 +93,8 @@ memberships_CPM <- as.data.frame(memberships_CPM)
 
 ```{r}
 # Choose a cluster
-# table(memberships_CPM)
 # 
 # cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 3]
-
 # length(cluster_members_CPM)
 # 
 # # Map to Gene names
