@@ -39,21 +39,27 @@ powers <- c(c(1:10), seq(from = 10, to = 30, by = 1))
 sft <- pickSoftThreshold(datExpr, powerVector = powers, 
                         verbose = 5, networkType = "signed") 
 
-sft_data <- sft$fitIndices
+sizeGrWindow(9, 5)
+par(mfrow = c(1, 2))
+cex1 <- 0.9
 
-p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
-  geom_point() +
-  geom_hline(yintercept = 0.8, color = "red") +
-  labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
-  theme_classic()
+plot(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3])*sft$fitIndices[, 2],
+     xlab = "Soft Threshold (power)", 
+     ylab = "Scale Free Topology Model Fit, signed R^2", 
+     type = "n", main = paste("Scale independence"))
 
-p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
-  geom_point() +
-  geom_text(nudge_y = 0.1) +
-  labs(x = "Power", y = "Mean Connectivity") +
-  theme_classic()
+text(sft$fitIndices[,1], -sign(sft$fitIndices[, 3])*sft$fitIndices[, 2], 
+     labels = powers, cex = cex1, col = "red")
 
-grid.arrange(p1, p2)
+abline(h = 0.90, col = "red")
+plot(sft$fitIndices[, 1], sft$fitIndices[, 5], 
+     xlab = "Soft Threshold (power)", ylab = "Mean Connectivity", 
+     type = "n", main = paste("Mean connectivity"))
+
+text(sft$fitIndices[, 1], sft$fitIndices[, 5], 
+     labels = powers, cex = cex1, col = "red")
+ 
+
 ```
 
 # Construct a gene co-expression matrix, TOM, distance TOMM
@@ -64,8 +70,11 @@ enableWGCNAThreads()
 adjacency <- adjacency(datExpr, power = sft$powerEstimate, type = "signed") #specify network type
 head(adjacency)
 
-TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
-dissTOM = 1-TOM
+TOM <- TOMsimilarity(adjacency, TOMType = "signed") # specify network type
+
+View(TOM)
+
+dissTOM <- 1 - TOM
 
 ```
 
@@ -88,6 +97,7 @@ dynamicColors <- labels2colors(dynamicMods)
 MEList = moduleEigengenes(datExpr, colors = dynamicColors, 
                           softPower = sft$powerEstimate)
 MEs <- MEList$eigengenes
+
 MEDiss <- 1 - cor(MEs)
 METree <- hclust(as.dist(MEDiss), method= "average")
 
@@ -105,7 +115,7 @@ mergedMEs <- merge$newMEs
 plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), 
                     c("Dynamic Tree Cut", "Merged dynamic"),
                     dendroLabels = FALSE, hang = 0.03, 
-                    addGuide = TRUE, guideHang=0.05)
+                    addGuide = TRUE, guideHang = 0.05)
 
 moduleColors <- mergedColors
 colorOrder <- c("grey", standardColors(50))
@@ -119,26 +129,25 @@ save(MEs, moduleLabels, moduleColors, geneTree,
 # Relate gene expression modules to traits
 
 ```{r}
-#Define number of genes and samples
+# Define number of genes and samples
 nGenes <- ncol(datExpr)
 nSamples  <- nrow(datExpr)
-#Recalculate MEs with color labels
+
+# Recalculate MEs with color labels
 MEs0 <- moduleEigengenes(datExpr, moduleColors)$eigengenes
 MEs <- orderMEs(MEs0)
 moduleTraitCor <- cor(MEs, datTraits, use = "p")
 moduleTraitPvalue <- corPvalueStudent(moduleTraitCor, nSamples)
  
- 
-#Print correlation heatmap between modules and traits
+# Print correlation heatmap between modules and traits
 textMatrix <- paste(signif(moduleTraitCor, 2), "\n(",
                         signif(moduleTraitPvalue, 1), ")", sep = "")
 dim(textMatrix) <- dim(moduleTraitCor)
 par(mar <- c(6, 8.5, 3, 3))
  
- 
-#display the corelation values with a heatmap plot
-#INCLUE THE NEXT LINE TO SAVE TO FILE
-#pdf(file="heatmap.pdf")
+# display the corelation values with a heatmap plot
+# INCLUE THE NEXT LINE TO SAVE TO FILE
+# pdf(file="heatmap.pdf")
 labeledHeatmap(Matrix = moduleTraitCor,
             xLabels = names(datTraits),
             yLabels = names(MEs),
@@ -148,16 +157,10 @@ labeledHeatmap(Matrix = moduleTraitCor,
             textMatrix = textMatrix,
             setStdMargins = FALSE,
             cex.text = 0.5,
-            zlim = c(-1,1),
+            zlim = c(-1, 1),
             main = paste("Module-trait relationships"))
+
+names(datExpr)[moduleColors == "brown"]
 ```
-
-
-
-
-
-
-
-
 
 
