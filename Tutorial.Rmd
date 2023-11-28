@@ -72,8 +72,6 @@ head(adjacency)
 
 TOM <- TOMsimilarity(adjacency, TOMType = "signed") # specify network type
 
-View(TOM)
-
 dissTOM <- 1 - TOM
 
 ```
@@ -99,7 +97,7 @@ MEList = moduleEigengenes(datExpr, colors = dynamicColors,
 MEs <- MEList$eigengenes
 
 MEDiss <- 1 - cor(MEs)
-METree <- hclust(as.dist(MEDiss), method= "average")
+METree <- hclust(as.dist(MEDiss), method = "average")
 
 save(dynamicMods, MEList, MEs, MEDiss, METree, 
      file = "Network_allSamples_signed_RLDfiltered.RData")

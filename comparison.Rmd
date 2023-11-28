@@ -11,6 +11,7 @@ table(memberships_CPM)
 table(clusters_WGCNA)
 ```
 
+
 ```{r}
 library(textshape)
 library(pheatmap)
@@ -22,8 +23,6 @@ library(dynamicTreeCut)
 library(Hmisc)
 ```
 
-
-
 # Jaccard index btw pairs
 
 ```{r}
@@ -33,7 +32,7 @@ jaccard <- function(a, b) {
 }
 
 matching_clust_num <- min(length(rownames(table(clusters_WGCNA))) - 1,
-                          length(rownames(table(memberships_CPM))) -1)
+                          length(rownames(table(memberships_CPM))) - 1)
 
 indices <- c()
 matches <- c()

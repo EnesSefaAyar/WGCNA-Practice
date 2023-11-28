@@ -7,7 +7,7 @@ chunk_output_type: console
 # Install
 
 ```{r. eval = FALSE}
-install.packages('WGCNA')n 
+install.packages('WGCNA')
 BiocManager::install("UniProt.ws")
 install.packages("enrichR")
 ```
@@ -31,81 +31,98 @@ library(enrichR)
 
 scp <- specht2019v3() # Load specific data set
 
-# Subset samples by cell type/batch
-
+# Subset same type of cells
 scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
-
 dim(scp_sub) # check dimensions
 
+# Extract assay only
 df_WGCNA <- assay(scp_sub)
 
+# Highly Variable features
+var <- apply(df_WGCNA, 1, var)
+df_WGCNA <- df_WGCNA[var >= quantile(var, 0.7), ]
+dim(df_WGCNA)
+
+corr <- rcorr(t(df_WGCNA[, ]), type = "pearson")
+
+cor_df <- corr$r
+cor_df[corr$P > 0.01 & abs(corr$r) > 0.3] <- 0
+
 # Explore
-# hist(df_WGCNA[, 3])
-# apply(df_WGCNA, 2, hist)
+# hist(df_CPM[, 3])
+apply(df_WGCNA, 1, hist)
 ```
 
 # Soft Threshold
 
 ```{r}
-powers <- c(seq(from = 1, to = 10, by = 0.1))
+powers <- c(seq(from = 1, to = 30, by = 0.5))
 sft <- pickSoftThreshold(t(df_WGCNA),
                   powerVector = powers,
                   networkType = "signed",
                   verbose = 5)
 
-# sft_data <- sft$fitIndices
-# 
-# p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
-#   geom_point() +
-#   geom_hline(yintercept = 0.8, color = "red") +
-#   labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
-#   theme_classic()
-# 
-# p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
-#   geom_point() +
-#   geom_text(nudge_y = 0.1) +
-#   labs(x = "Power", y = "Mean Connectivity") +
-#   theme_classic()
-# 
-# grid.arrange(p1, p2)
+sft_data <- sft$fitIndices
+ 
+p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
+  geom_point() +
+  geom_hline(yintercept = 0.8, color = "red") +
+  labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
+  theme_classic()
+
+p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
+  geom_point() +
+  geom_text(nudge_y = 0.1) +
+  labs(x = "Power", y = "Mean Connectivity") +
+  theme_classic()
+
+grid.arrange(p1, p2)
 
 ```
 
 # Module detection
 
 ```{r}
-soft_power <- sft$powerEstimate # Default estimation
 temp_cor <- cor
 cor <- WGCNA::cor
 
-bwnet <- blockwiseModules(t(df_WGCNA), 
-                          corType = "bicor",
-                          minModuleSize = 30,
-                          TOMType = "signed",
-                          power = soft_power,
-                          mergeCutHeight = 0.25,
-                          numericLabels = FALSE,
-                          verbose = 3)
+# Build a adjacency "correlation" matrix, sft$powerEstimate
+adjacency <- adjacency(t(df_WGCNA[, ]), power = 6, type = "signed") #specify network type
 
-plotDendroAndColors(bwnet$dendrograms[[1]],
-                    colors = labels2colors(bwnet$colors),
-                    "Module colors",
-                    dendroLabels = FALSE, hang = 0.03,
+TOM <- TOMsimilarity(adjacency, TOMType = "signed") # specify network type
+rownames(TOM) <- rownames(adjacency)
+colnames(TOM) <- colnames(adjacency)
+
+View(TOM)
+
+dissTOM <- 1 - TOM
+
+# Generate a clustered gene tree
+geneTree <- hclust(as.dist(dissTOM), method = "average")
+
+#This sets the minimum number of genes to cluster into a module
+dynamicMods <- cutreeDynamic(geneTree, minClusterSize = 5)
+
+dynamicColors <- labels2colors(dynamicMods)
+
+plotDendroAndColors(geneTree, dynamicColors, 
+                    c("Dynamic Tree Cut"),
+                    dendroLabels = FALSE, hang = 0.03, 
                     addGuide = TRUE, guideHang = 0.05)
+
+clusters_WGCNA <- as.data.frame(dynamicMods)
 ```
 
 # Enrichment
 
 ```{r}
-table(bwnet$colors)
+table(clusters_WGCNA)
 
-clusters_WGCNA <- as.data.frame(bwnet$colors)
+cluster_members_WGCNA <- rownames(cor_df)[clusters_WGCNA == 4]
+length(cluster_members_WGCNA)
 
-cluster_members_WGCNA <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == "brown"]
-# 
-# length(cluster_members_WGCNA)
-# # Map to Gene names
+# Map to Gene names
 up <- UniProt.ws(taxId = 9606)
 res <- select(
     x = up,
@@ -113,12 +130,27 @@ res <- select(
     to = "Gene_Name"
 )
 
+# Subplot of module correlation
+temp_df <- cor_df[cluster_members_WGCNA, cluster_members_WGCNA]
+rownames(temp_df) <- res$To 
+colnames(temp_df) <- res$To 
+pheatmap(temp_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = TRUE, 
+         show_rownames = TRUE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10,
+         display_numbers = round(temp_df, 2))
+
+
 # List of databases
 # View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched_WGCNA <- enrichr(res$To, dbs)
-plotEnrich(enriched_WGCNA[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+plotEnrich(enriched_WGCNA[[3]], showTerms = 10, numChar = 40, y = "Ratio")
 
 ```
 

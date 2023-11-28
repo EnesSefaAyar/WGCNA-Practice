@@ -35,46 +35,44 @@ library(Hmisc)
 scp <- specht2019v3() # Load specific data set
 
 # Subset same type of cells
-
 scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
-
 dim(scp_sub) # check dimensions
 
-df_CPM <- assay(scp_sub[["proteins"]])
+# Extract assay only
+df_CPM <- assay(scp_sub)
+
+# Highly Variable features
+var <- apply(df_CPM, 1, var)
+df_CPM <- df_CPM[var >= quantile(var, 0.7), ]
+dim(df_CPM)
+
+corr <- rcorr(t(df_CPM[, ]), type = "pearson")
+
+cor_df <- corr$r
+cor_df[corr$P > 0.01 & abs(corr$r) > 0.3] <- 0
+
 
 # Explore
 # hist(df_CPM[, 3])
-# apply(df_CPM, 2, hist)
+apply(df_CPM, 1, hist)
 ```
 
 # Calculate correlations
 
 ```{r}
-corr <- rcorr(t(df_CPM[, ]), type = "pearson")
-
-cor_df <- corr$r
-cor_df[corr$P > 0.01 & abs(corr$r) > 0.3] <- 0
-  
-# apply(as.data.frame(apply(abs(cor_df), 2, sd)), breaks = 40, 2, hist)
-
-# Filter some proteins
-# condition <- apply(abs(cor_df), 2, sd) > 0.01
-# cor_df <- cor_df[condition, condition]
-# dim(cor_df)
-
 # Cluster and order the data frame
-# ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
+ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
 
 # Plot the heat-map
-# pheatmap(ordered_cor_df,
-#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-#          breaks = seq(from = -1, to = 1, length.out = 101),
-#          border_color = NA,legend = FALSE, show_colnames = FALSE, 
-#          show_rownames = FALSE,
-#          cluster_rows = FALSE, cluster_cols = FALSE,
-#          cellwidth = 0.15, cellheight = 0.15,
-#          fontfamily = 'sans', fontsize = 10)
+pheatmap(ordered_cor_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = FALSE, 
+         show_rownames = FALSE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 500/nrow(ordered_cor_df), cellheight = 500/nrow(ordered_cor_df),
+         fontfamily = 'sans', fontsize = 10)
 ```
 
 # Identify Clusters
@@ -84,7 +82,7 @@ distance_df <- 1 - cor_df
 
 tree <- hclust(as.dist(distance_df), method = "average")
 
-memberships_CPM <- cutreeDynamic(tree, minClusterSize = 30)
+memberships_CPM <- cutreeDynamic(tree, distM = distance_df, minClusterSize = 5)
 
 memberships_CPM <- as.data.frame(memberships_CPM)
 ```
@@ -93,22 +91,38 @@ memberships_CPM <- as.data.frame(memberships_CPM)
 
 ```{r}
 # Choose a cluster
-# 
-# cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 3]
-# length(cluster_members_CPM)
-# 
-# # Map to Gene names
-# up <- UniProt.ws(taxId = 9606)
-# res <- select(
-#     x = up,
-#     keys = cluster_members_CPM,
-#     to = "Gene_Name"
-# )
-# 
-# # List of databases: View(listEnrichrDbs())
-# 
-# dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
-# enriched <- enrichr(res$To, dbs)
-# plotEnrich(enriched[[1]], showTerms = 10,
-#            numChar = 40, y = "Ratio", orderBy = "P.value")
+
+table(memberships_CPM)
+
+cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 91]
+length(cluster_members_CPM)
+
+# Map to Gene names
+up <- UniProt.ws(taxId = 9606)
+res <- select(
+    x = up,
+    keys = cluster_members_CPM,
+    to = "Gene_Name"
+)
+
+# Subplot of module correlation
+temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM] 
+rownames(temp_df) <- res$To 
+colnames(temp_df) <- res$To 
+pheatmap(temp_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = FALSE, 
+         show_rownames = TRUE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10,
+         display_numbers = round(temp_df, 2))
+
+# List of databases: View(listEnrichrDbs())
+
+dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+enriched <- enrichr(res$To, dbs)
+plotEnrich(enriched[[3]], showTerms = 10,
+           numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
