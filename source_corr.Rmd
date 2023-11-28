@@ -112,7 +112,7 @@ colnames(temp_df) <- res$To
 pheatmap(temp_df,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = FALSE, 
+         border_color = NA,legend = FALSE, show_colnames = TRUE, 
          show_rownames = TRUE,
          cluster_rows = FALSE, cluster_cols = FALSE,
          cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),

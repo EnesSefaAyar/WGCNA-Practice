@@ -119,7 +119,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 ```{r}
 table(clusters_WGCNA)
 
-cluster_members_WGCNA <- rownames(cor_df)[clusters_WGCNA == 4]
+cluster_members_WGCNA <- rownames(cor_df)[clusters_WGCNA == 7]
 length(cluster_members_WGCNA)
 
 # Map to Gene names
@@ -132,15 +132,17 @@ res <- select(
 
 # Subplot of module correlation
 temp_df <- cor_df[cluster_members_WGCNA, cluster_members_WGCNA]
-rownames(temp_df) <- res$To 
-colnames(temp_df) <- res$To 
+if (length(res$To) == length(rownames(temp_df))){
+  rownames(temp_df) <- res$To 
+  colnames(temp_df) <- res$To 
+}
 pheatmap(temp_df,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
          border_color = NA,legend = FALSE, show_colnames = TRUE, 
          show_rownames = TRUE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+         cellwidth = 450/nrow(temp_df), cellheight = 450/nrow(temp_df),
          fontfamily = 'sans', fontsize = 10,
          display_numbers = round(temp_df, 2))
 
