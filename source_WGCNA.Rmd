@@ -22,6 +22,8 @@ library(ggplot2)
 library(gridExtra)
 library(UniProt.ws)
 library(enrichR)
+library(Hmisc)
+library(pheatmap)
 ```
 
 # Load data
@@ -41,17 +43,17 @@ df_WGCNA <- assay(scp_sub)
 
 # Highly Variable features
 var <- apply(df_WGCNA, 1, var)
-df_WGCNA <- df_WGCNA[var >= quantile(var, 0.7), ]
+df_WGCNA <- df_WGCNA[var >= quantile(var, 0.5), ]
 dim(df_WGCNA)
 
 corr <- rcorr(t(df_WGCNA[, ]), type = "pearson")
 
 cor_df <- corr$r
-cor_df[corr$P > 0.01 & abs(corr$r) > 0.3] <- 0
+cor_df[corr$P > 0.05 & abs(corr$r) > 0.3] <- 0
 
 # Explore
 # hist(df_CPM[, 3])
-apply(df_WGCNA, 1, hist)
+# apply(df_WGCNA, 1, hist)
 ```
 
 # Soft Threshold
@@ -78,7 +80,6 @@ p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
   theme_classic()
 
 grid.arrange(p1, p2)
-
 ```
 
 # Module detection
@@ -87,14 +88,13 @@ grid.arrange(p1, p2)
 temp_cor <- cor
 cor <- WGCNA::cor
 
-# Build a adjacency "correlation" matrix, sft$powerEstimate
-adjacency <- adjacency(t(df_WGCNA[, ]), power = 6, type = "signed") #specify network type
+# Build a adjacency "correlation" matrix
+adjacency <- adjacency(t(df_WGCNA[, ]), power = sft$powerEstimate, 
+                       type = "signed")
 
-TOM <- TOMsimilarity(adjacency, TOMType = "signed") # specify network type
+TOM <- TOMsimilarity(adjacency, TOMType = "signed")
 rownames(TOM) <- rownames(adjacency)
 colnames(TOM) <- colnames(adjacency)
-
-View(TOM)
 
 dissTOM <- 1 - TOM
 
@@ -114,7 +114,7 @@ plotDendroAndColors(geneTree, dynamicColors,
 clusters_WGCNA <- as.data.frame(dynamicMods)
 ```
 
-# Enrichment
+# Select Cluster
 
 ```{r}
 table(clusters_WGCNA)
@@ -145,14 +145,17 @@ pheatmap(temp_df,
          cellwidth = 450/nrow(temp_df), cellheight = 450/nrow(temp_df),
          fontfamily = 'sans', fontsize = 10,
          display_numbers = round(temp_df, 2))
+```
 
+# Enrichment
 
+```{r}
 # List of databases
 # View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched_WGCNA <- enrichr(res$To, dbs)
 plotEnrich(enriched_WGCNA[[3]], showTerms = 10, numChar = 40, y = "Ratio")
-
 ```
+
 
