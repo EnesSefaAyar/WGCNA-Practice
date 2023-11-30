@@ -36,11 +36,11 @@ matching_clust_num <- min(length(rownames(table(clusters_WGCNA))) - 1,
 
 indices <- c()
 matches <- c()
-
+rownames(clusters_WGCNA)
 for (i in rownames(table(memberships_CPM))) {
   for (j in rownames(table(clusters_WGCNA))) {
     members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == i]
-    members_WGCNA <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == j]
+    members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == j]
     # Calculate Jaccard index
     j_index <- jaccard(members_CPM, members_WGCNA)
     indices <- c(indices, j_index)
@@ -48,15 +48,12 @@ for (i in rownames(table(memberships_CPM))) {
   }
 }
 
-for (i in c(1:2)) {
-  clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
-  CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
-  WGCNA_proteins <- rownames(clusters_WGCNA)[clusters_WGCNA$`bwnet$colors` == clusts[2]]
-  inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
-  print(length(inter_mem))
-  print(max(indices))
-  indices <- indices[-which.max(indices)]
-}
+# Best matching clusters
+clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
+CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
+WGCNA_proteins <- rownames(df_WGCNA)[clusters_WGCNA == clusts[2]]
+inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
+length(inter_mem)
 
 # # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -71,8 +68,9 @@ res <- select(
 
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
-enriched
-plotEnrich(enriched[[1]], showTerms = 20, numChar = 40, y = "Ratio", orderBy = "P.value")
+plotEnrich(enriched[[3]], showTerms = 10, numChar = 40, y = "Ratio",
+           orderBy = "P.value")
+
 sessionInfo()
 ```
 

@@ -1,0 +1,32 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# 
+
+```{r}
+# View(as.data.frame(scpdata())) # Available data sets
+
+scp <- specht2019v3() # Load specific data set
+
+# Subset same type of cells
+
+rownames(scp[["proteins"]])
+
+scp_sub <- assay(scp[["proteins"]])
+
+for (name1 in rownames(scp[["proteins"]])) {
+  for (name2 in rownames(scp[["proteins"]])) {
+    if (name1 != name2) {
+      x <- scp_sub[name, ]
+      y <- scp_sub[name, ]
+    }
+  }
+}
+plot(x, y)
+```
+
+
+

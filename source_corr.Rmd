@@ -36,8 +36,8 @@ scp <- specht2019v3() # Load specific data set
 
 # Subset same type of cells
 scp_sub <- getWithColData(scp, "proteins")
-scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
-dim(scp_sub) # check dimensions
+# scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
+# dim(scp_sub) # check dimensions
 
 # Extract assay only
 df_CPM <- assay(scp_sub)
@@ -48,11 +48,9 @@ df_CPM <- df_CPM[var >= quantile(var, 0.5), ]
 dim(df_CPM)
 
 corr <- rcorr(t(df_CPM[, ]), type = "pearson")
-
 cor_df <- corr$r
+
 # cor_df[corr$P > 0.05 & abs(corr$r) > 0.3] <- 0
-
-
 # Explore
 # hist(df_CPM[, 3])
 # apply(df_CPM, 1, hist)
@@ -65,14 +63,15 @@ cor_df <- corr$r
 ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
 
 # Plot the heat-map
-pheatmap(ordered_cor_df,
+temp <- ordered_cor_df[15:20, 15:20]
+pheatmap(temp,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = FALSE, 
+         border_color = NA,legend = FALSE, show_colnames = FALSE,
          show_rownames = FALSE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 500/nrow(ordered_cor_df), cellheight = 500/nrow(ordered_cor_df),
-         fontfamily = 'sans', fontsize = 10)
+         cellwidth = 400/nrow(temp), cellheight = 400/nrow(temp),
+         display_numbers = round(temp, 2))
 ```
 
 # Identify Clusters
@@ -82,71 +81,10 @@ distance_df <- 1 - cor_df
 
 tree <- hclust(as.dist(distance_df), method = "average")
 
-memberships_CPM <- cutreeDynamic(tree, distM = distance_df, minClusterSize = 5)
+memberships_CPM <- cutreeDynamic(tree, distM = distance_df, minClusterSize = 15)
 
 memberships_CPM <- as.data.frame(memberships_CPM)
 ```
-
-# Identify Clusters Custom
-
-```{r}
-best_cluster <- function(orderedCorrMatrix, maxClusterSize = 30) {
-starts <- c()
-ends <- c()
-for (t in 1:5) {
-  scores <- c()
-  for (i in c(seq(from = 1, to = nrow(orderedCorrMatrix) - maxClusterSize, by = 1))) {
-    for (j in c(seq(from = 1, to = maxClusterSize, by = 1))) {
-      score <- mean(abs(orderedCorrMatrix[i:(i+j), i:(i+j)]))*(j)
-      scores <- c(scores, score)
-    }
-  }
-  max_i <- which.max(scores) %/% maxClusterSize
-  max_j <- (length(scores) - max_i*(nrow(orderedCorrMatrix) - 
-                                    maxClusterSize)) %% maxClusterSize 
-  starts <- c(starts, max_i)
-  ends <-  c(ends, max_i + max_j)
-  
-  orderedCorrMatrix <- orderedCorrMatrix[-max_i:-(max_i + max_j), -max_i:-(max_i + max_j)]
-}
-
-df <- data.frame(starts, ends)
-return(df)
-}
-
-
-indices <- best_cluster(ordered_cor_df)
-
-indices[5, 2] - indices[5, 1]
-
-cluster_members_CPM <- rownames(ordered_cor_df)[indices[4, 1]:indices[4, 2]]
-
-# Map to Gene names
-up <- UniProt.ws(taxId = 9606)
-res <- select(
-    x = up,
-    keys = cluster_members_CPM,
-    to = "Gene_Name"
-)
-
-# Subplot of module correlation
-temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
-if (length(res$To) == length(rownames(temp_df))){
-  rownames(temp_df) <- res$To 
-  colnames(temp_df) <- res$To 
-}
-pheatmap(temp_df,
-         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-         breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = TRUE, 
-         show_rownames = TRUE,
-         cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
-         fontfamily = 'sans', fontsize = 10,
-         display_numbers = round(temp_df, 2))
-
-```
-
 # Cluster Selection
 
 ```{r}
@@ -165,21 +103,21 @@ res <- select(
     to = "Gene_Name"
 )
 
-# Subplot of module correlation
-temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
-if (length(res$To) == length(rownames(temp_df))){
-  rownames(temp_df) <- res$To 
-  colnames(temp_df) <- res$To 
-}
-pheatmap(temp_df,
-         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-         breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = TRUE, 
-         show_rownames = TRUE,
-         cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
-         fontfamily = 'sans', fontsize = 10,
-         display_numbers = round(temp_df, 2))
+# # Subplot of module correlation
+# temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
+# if (length(res$To) == length(rownames(temp_df))){
+#   rownames(temp_df) <- res$To 
+#   colnames(temp_df) <- res$To 
+# }
+# pheatmap(temp_df,
+#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+#          breaks = seq(from = -1, to = 1, length.out = 101),
+#          border_color = NA,legend = FALSE, show_colnames = TRUE, 
+#          show_rownames = TRUE,
+#          cluster_rows = FALSE, cluster_cols = FALSE,
+#          cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+#          fontfamily = 'sans', fontsize = 10,
+#          display_numbers = round(temp_df, 2))
 ```
 
 # Enrichments
@@ -187,9 +125,11 @@ pheatmap(temp_df,
 ```{r}
 # List of databases: View(listEnrichrDbs())
 
-dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
+# View(listEnrichrDbs())
+
+dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
-plotEnrich(enriched[[1]], showTerms = 10,
+plotEnrich(enriched[[3]], showTerms = 10,
            numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
 
