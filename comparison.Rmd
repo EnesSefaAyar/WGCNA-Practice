@@ -17,13 +17,9 @@ library(textshape)
 library(pheatmap)
 library(UniProt.ws)
 library(enrichR)
-library(scp)
-library(scpdata)
-library(dynamicTreeCut)
-library(Hmisc)
 ```
 
-# Jaccard index btw pairs
+# Match Clusters (Jaccard index)
 
 ```{r}
 jaccard <- function(a, b) {
@@ -36,7 +32,6 @@ matching_clust_num <- min(length(rownames(table(clusters_WGCNA))) - 1,
 
 indices <- c()
 matches <- c()
-rownames(clusters_WGCNA)
 for (i in rownames(table(memberships_CPM))) {
   for (j in rownames(table(clusters_WGCNA))) {
     members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == i]
@@ -48,14 +43,14 @@ for (i in rownames(table(memberships_CPM))) {
   }
 }
 
-# Best matching clusters
+# Best matching cluster
 clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
 CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
 WGCNA_proteins <- rownames(df_WGCNA)[clusters_WGCNA == clusts[2]]
 inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
 length(inter_mem)
 
-# # Map to Gene names
+# Map to Gene names
 up <- UniProt.ws(taxId = 9606)
 res <- select(
     x = up,
@@ -63,22 +58,37 @@ res <- select(
     to = "Gene_Name"
 )
 
-# List of databases
-# View(listEnrichrDbs())
-
+# List of databases: View(listEnrichrDbs())
 dbs <- c("WikiPathway_2023_Human", "GO_Biological_Process_2023", "KEGG_2021_Human")
 enriched <- enrichr(res$To, dbs)
 plotEnrich(enriched[[3]], showTerms = 10, numChar = 40, y = "Ratio",
            orderBy = "P.value")
-
-sessionInfo()
 ```
 
+# Analyze Clusters
 
+```{r}
+enrichment <- 1
+enriched_genes <- strsplit(enriched[[3]][enrichment, "Genes"], ";")[[1]]
 
+# View(enriched_WGCNA[[3]])
+enriched_genes
+enriched_prots <- c()
+for (i in 1:length(res$To)) {
+  if (res$To[i] %in% mems) {
+    enriched_prots <- c(enriched_prots,(res$From[i]))
+  }
+}
 
-
-
-
-
+temp_df <- cor_df[enriched_prots, enriched_prots]
+pheatmap(temp_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = FALSE,
+         show_rownames = TRUE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 550/nrow(temp_df), cellheight = 550/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10,
+         display_numbers = round(temp_df, 2))
+```
 

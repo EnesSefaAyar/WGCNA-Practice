@@ -10,7 +10,6 @@ chunk_output_type: console
 install.packages('WGCNA')
 BiocManager::install("UniProt.ws")
 install.packages("enrichR")
-install.packages("expm", repos="http://R-Forge.R-project.org")
 ```
 
 # Import
@@ -23,9 +22,7 @@ library(ggplot2)
 library(gridExtra)
 library(UniProt.ws)
 library(enrichR)
-library(Hmisc)
 library(pheatmap)
-library(expm)
 ```
 
 # Load data
@@ -38,14 +35,10 @@ scp <- specht2019v3() # Load specific data set
 # Subset same type of cells
 scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
-
 dim(scp_sub) # check dimensions
 
 # Extract assay only
 df_WGCNA <- assay(scp_sub)
-
-# corr <- rcorr(t(df_WGCNA[, ]), type = "pearson")
-# cor_df <- corr$r
 
 # Highly Variable features
 var <- apply(df_WGCNA, 1, var)
@@ -53,10 +46,6 @@ df_WGCNA <- df_WGCNA[var >= quantile(var, 0.5), ]
 dim(df_WGCNA)
 
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
-
-# Explore
-# hist(df_CPM[, 3])
-# apply(df_WGCNA, 1, hist)
 ```
 
 # Soft Threshold
@@ -95,8 +84,6 @@ cor <- WGCNA::cor
 adjacency <- adjacency(t(df_WGCNA), power = sft$powerEstimate, type = "signed") 
 
 TOM <- TOMsimilarity(adjacency, TOMType = "signed")
-rownames(TOM) <- rownames(cor_df)
-colnames(TOM) <- colnames(cor_df)
 
 dissTOM <- 1 - TOM
 
@@ -121,8 +108,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 ```{r}
 table(clusters_WGCNA)
 
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 2]
-length(cluster_members_WGCNA)
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 1]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -136,8 +122,7 @@ res <- select(
 # Enrichment
 
 ```{r}
-# List of databases
-# View(listEnrichrDbs())
+# List of databases: View(listEnrichrDbs())
 
 dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
 enriched_WGCNA <- enrichr(res$To, dbs)
@@ -147,28 +132,28 @@ plotEnrich(enriched_WGCNA[[3]], showTerms = 10, numChar = 40, y = "Ratio")
 # Analyze Clusters
 
 ```{r}
-mems <- strsplit(enriched_WGCNA[[3]][1, "Genes"], ";")[[1]]
+enrichment <- 1
+enriched_genes <- strsplit(enriched_WGCNA[[3]][enrichment, "Genes"], ";")[[1]]
 
 # View(enriched_WGCNA[[3]])
-mems
-new_mems <- c()
+enriched_genes
+enriched_prots <- c()
 for (i in 1:length(res$To)) {
   if (res$To[i] %in% mems) {
-    new_mems <- c(new_mems,(res$From[i]))
+    enriched_prots <- c(enriched_prots,(res$From[i]))
   }
 }
 
-temp_df <- cor_df[new_mems, new_mems]
 
+temp_df <- cor_df[enriched_prots, enriched_prots]
 pheatmap(temp_df,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
          border_color = NA,legend = FALSE, show_colnames = FALSE,
-         show_rownames = FALSE,
+         show_rownames = TRUE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 450/nrow(temp_df), cellheight = 450/nrow(temp_df),
-         fontfamily = 'sans', fontsize = 10)
-
+         cellwidth = 550/nrow(temp_df), cellheight = 550/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10,
+         display_numbers = round(temp_df, 2))
 ```
-
 

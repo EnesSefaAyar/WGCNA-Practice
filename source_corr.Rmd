@@ -24,7 +24,6 @@ library(enrichR)
 library(scp)
 library(scpdata)
 library(dynamicTreeCut)
-library(Hmisc)
 ```
 
 # Load data
@@ -36,8 +35,8 @@ scp <- specht2019v3() # Load specific data set
 
 # Subset same type of cells
 scp_sub <- getWithColData(scp, "proteins")
-# scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
-# dim(scp_sub) # check dimensions
+scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
+dim(scp_sub) # check dimensions
 
 # Extract assay only
 df_CPM <- assay(scp_sub)
@@ -47,31 +46,24 @@ var <- apply(df_CPM, 1, var)
 df_CPM <- df_CPM[var >= quantile(var, 0.5), ]
 dim(df_CPM)
 
-corr <- rcorr(t(df_CPM[, ]), type = "pearson")
-cor_df <- corr$r
-
-# cor_df[corr$P > 0.05 & abs(corr$r) > 0.3] <- 0
-# Explore
-# hist(df_CPM[, 3])
-# apply(df_CPM, 1, hist)
+cor_df <- cor(t(df_CPM[, ]), method = "pearson")
 ```
 
-# Calculate correlations
+# Order based on correlations
 
 ```{r}
 # Cluster and order the data frame
 ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
 
 # Plot the heat-map
-temp <- ordered_cor_df[15:20, 15:20]
+temp <- ordered_cor_df
 pheatmap(temp,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
          border_color = NA,legend = FALSE, show_colnames = FALSE,
          show_rownames = FALSE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 400/nrow(temp), cellheight = 400/nrow(temp),
-         display_numbers = round(temp, 2))
+         cellwidth = 450/nrow(temp), cellheight = 450/nrow(temp))
 ```
 
 # Identify Clusters
@@ -85,14 +77,14 @@ memberships_CPM <- cutreeDynamic(tree, distM = distance_df, minClusterSize = 15)
 
 memberships_CPM <- as.data.frame(memberships_CPM)
 ```
+
 # Cluster Selection
 
 ```{r}
 # Choose a cluster
-
 table(memberships_CPM)
 
-cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 1]
+cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 2]
 length(cluster_members_CPM)
 
 # Map to Gene names
@@ -103,34 +95,56 @@ res <- select(
     to = "Gene_Name"
 )
 
-# # Subplot of module correlation
-# temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
-# if (length(res$To) == length(rownames(temp_df))){
-#   rownames(temp_df) <- res$To 
-#   colnames(temp_df) <- res$To 
-# }
-# pheatmap(temp_df,
-#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-#          breaks = seq(from = -1, to = 1, length.out = 101),
-#          border_color = NA,legend = FALSE, show_colnames = TRUE, 
-#          show_rownames = TRUE,
-#          cluster_rows = FALSE, cluster_cols = FALSE,
-#          cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
-#          fontfamily = 'sans', fontsize = 10,
-#          display_numbers = round(temp_df, 2))
+# Subplot of module correlation
+temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
+if (length(res$To) == length(rownames(temp_df))){
+  rownames(temp_df) <- res$To
+  colnames(temp_df) <- res$To
+}
+pheatmap(temp_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = TRUE,
+         show_rownames = TRUE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10)
 ```
 
 # Enrichments
 
 ```{r}
 # List of databases: View(listEnrichrDbs())
-
-# View(listEnrichrDbs())
-
 dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
-enriched <- enrichr(res$To, dbs)
+enriched_CPM <- enrichr(res$To, dbs)
 plotEnrich(enriched[[3]], showTerms = 10,
            numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
 
+# Analyze Clusters
+
+```{r}
+enrichment <- 1
+enriched_genes <- strsplit(enriched_CPM[[3]][enrichment, "Genes"], ";")[[1]]
+
+# View(enriched_WGCNA[[3]])
+enriched_genes
+enriched_prots <- c()
+for (i in 1:length(res$To)) {
+  if (res$To[i] %in% mems) {
+    enriched_prots <- c(enriched_prots,(res$From[i]))
+  }
+}
+
+temp_df <- cor_df[enriched_prots, enriched_prots]
+pheatmap(temp_df,
+         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+         breaks = seq(from = -1, to = 1, length.out = 101),
+         border_color = NA,legend = FALSE, show_colnames = FALSE,
+         show_rownames = TRUE,
+         cluster_rows = FALSE, cluster_cols = FALSE,
+         cellwidth = 550/nrow(temp_df), cellheight = 550/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10,
+         display_numbers = round(temp_df, 2))
+```
 
