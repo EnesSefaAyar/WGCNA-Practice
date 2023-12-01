@@ -108,7 +108,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 ```{r}
 table(clusters_WGCNA)
 
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 1]
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 3]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -139,11 +139,10 @@ enriched_genes <- strsplit(enriched_WGCNA[[3]][enrichment, "Genes"], ";")[[1]]
 enriched_genes
 enriched_prots <- c()
 for (i in 1:length(res$To)) {
-  if (res$To[i] %in% mems) {
+  if (res$To[i] %in% enriched_genes) {
     enriched_prots <- c(enriched_prots,(res$From[i]))
   }
 }
-
 
 temp_df <- cor_df[enriched_prots, enriched_prots]
 pheatmap(temp_df,

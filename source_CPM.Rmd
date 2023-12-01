@@ -84,7 +84,7 @@ memberships_CPM <- as.data.frame(memberships_CPM)
 # Choose a cluster
 table(memberships_CPM)
 
-cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 2]
+cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 1]
 length(cluster_members_CPM)
 
 # Map to Gene names
@@ -95,20 +95,21 @@ res <- select(
     to = "Gene_Name"
 )
 
-# Subplot of module correlation
-temp_df <- ordered_cor_df[cluster_members_CPM, cluster_members_CPM]
-if (length(res$To) == length(rownames(temp_df))){
-  rownames(temp_df) <- res$To
-  colnames(temp_df) <- res$To
-}
-pheatmap(temp_df,
-         color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-         breaks = seq(from = -1, to = 1, length.out = 101),
-         border_color = NA,legend = FALSE, show_colnames = TRUE,
-         show_rownames = TRUE,
-         cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
-         fontfamily = 'sans', fontsize = 10)
+# # Subplot of module correlation
+# temp_df <- cor_df[cluster_members_CPM, cluster_members_CPM]
+# if (length(res$To) == length(rownames(temp_df))){
+#   rownames(temp_df) <- res$To
+#   colnames(temp_df) <- res$To
+# }
+
+# pheatmap(temp_df,
+#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
+#          breaks = seq(from = -1, to = 1, length.out = 101),
+#          border_color = NA,legend = FALSE, show_colnames = TRUE,
+#          show_rownames = TRUE,
+#          cluster_rows = FALSE, cluster_cols = FALSE,
+#          cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+#          fontfamily = 'sans', fontsize = 10)
 ```
 
 # Enrichments
@@ -117,7 +118,7 @@ pheatmap(temp_df,
 # List of databases: View(listEnrichrDbs())
 dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
 enriched_CPM <- enrichr(res$To, dbs)
-plotEnrich(enriched[[3]], showTerms = 10,
+plotEnrich(enriched_CPM[[3]], showTerms = 10,
            numChar = 40, y = "Ratio", orderBy = "P.value")
 ```
 

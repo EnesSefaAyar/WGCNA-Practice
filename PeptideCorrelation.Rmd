@@ -12,19 +12,20 @@ editor_options:
 scp <- specht2019v3() # Load specific data set
 
 # Subset same type of cells
+scp_sub <- getWithColData(scp, "proteins")
+scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
+dim(scp_sub) # check dimensions
 
-rownames(scp[["proteins"]])
+# Extract assay only
+df_sub <- assay(scp_sub)
 
-scp_sub <- assay(scp[["proteins"]])
+# Highly Variable features
+var <- apply(df_sub, 1, var)
+df_sub <- df_sub[var >= quantile(var, 0.5), ]
+rownames(df_sub)
 
-for (name1 in rownames(scp[["proteins"]])) {
-  for (name2 in rownames(scp[["proteins"]])) {
-    if (name1 != name2) {
-      x <- scp_sub[name, ]
-      y <- scp_sub[name, ]
-    }
-  }
-}
+scp[["peptides", "proteins"]]
+
 plot(x, y)
 ```
 
