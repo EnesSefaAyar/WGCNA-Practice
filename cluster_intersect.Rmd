@@ -43,11 +43,15 @@ for (i in rownames(table(memberships_CPM))) {
   }
 }
 
-# Best matching cluster
-clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
-CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
-WGCNA_proteins <- rownames(df_WGCNA)[clusters_WGCNA == clusts[2]]
-inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
+# Best matching clusters
+for (i in 1:1) {
+  clusts <- strsplit(matches[which.max(indices)], " ")[[1]]
+  CPM_proteins <- rownames(cor_df)[memberships_CPM$memberships_CPM == clusts[1]]
+  WGCNA_proteins <- rownames(df_WGCNA)[clusters_WGCNA == clusts[2]]
+  inter_mem <- intersect(CPM_proteins, WGCNA_proteins)
+  matches <- matches[-which.max(indices)]
+}
+
 length(inter_mem)
 
 # Map to Gene names
@@ -75,7 +79,7 @@ enriched_genes <- strsplit(enriched[[3]][enrichment, "Genes"], ";")[[1]]
 enriched_genes
 enriched_prots <- c()
 for (i in 1:length(res$To)) {
-  if (res$To[i] %in% mems) {
+  if (res$To[i] %in% enriched_genes) {
     enriched_prots <- c(enriched_prots,(res$From[i]))
   }
 }

@@ -78,7 +78,7 @@ memberships_CPM <- cutreeDynamic(tree, distM = distance_df, minClusterSize = 15)
 memberships_CPM <- as.data.frame(memberships_CPM)
 ```
 
-# Cluster Selection
+# Cluster Enrichments
 
 ```{r}
 # Choose a cluster
@@ -95,26 +95,6 @@ res <- select(
     to = "Gene_Name"
 )
 
-# # Subplot of module correlation
-# temp_df <- cor_df[cluster_members_CPM, cluster_members_CPM]
-# if (length(res$To) == length(rownames(temp_df))){
-#   rownames(temp_df) <- res$To
-#   colnames(temp_df) <- res$To
-# }
-
-# pheatmap(temp_df,
-#          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-#          breaks = seq(from = -1, to = 1, length.out = 101),
-#          border_color = NA,legend = FALSE, show_colnames = TRUE,
-#          show_rownames = TRUE,
-#          cluster_rows = FALSE, cluster_cols = FALSE,
-#          cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
-#          fontfamily = 'sans', fontsize = 10)
-```
-
-# Enrichments
-
-```{r}
 # List of databases: View(listEnrichrDbs())
 dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
 enriched_CPM <- enrichr(res$To, dbs)
@@ -132,7 +112,7 @@ enriched_genes <- strsplit(enriched_CPM[[3]][enrichment, "Genes"], ";")[[1]]
 enriched_genes
 enriched_prots <- c()
 for (i in 1:length(res$To)) {
-  if (res$To[i] %in% mems) {
+  if (res$To[i] %in% enriched_genes) {
     enriched_prots <- c(enriched_prots,(res$From[i]))
   }
 }

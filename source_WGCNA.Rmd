@@ -31,9 +31,9 @@ library(pheatmap)
 # View(as.data.frame(scpdata())) # Available data sets
 
 scp <- specht2019v3() # Load specific data set
+scp_sub <- getWithColData(scp, "proteins")
 
 # Subset same type of cells
-scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
 dim(scp_sub) # check dimensions
 
@@ -48,42 +48,13 @@ dim(df_WGCNA)
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
 ```
 
-# Soft Threshold
-
-```{r}
-powers <- c(seq(from = 1, to = 20, by = 0.1))
-sft <- pickSoftThreshold(t(df_WGCNA),
-                  powerVector = powers,
-                  networkType = "signed",
-                  RsquaredCut = 0.9,
-                  verbose = 5)
-
-sft_data <- sft$fitIndices
- 
-p1 <- ggplot(sft_data, aes(Power, SFT.R.sq, label = Power)) +
-  geom_point() +
-  geom_hline(yintercept = 0.9, color = "red") +
-  labs( x = "Power", y = "Scale free topology model fit, signed R^2") +
-  theme_classic()
-
-p2 <- ggplot(sft_data, aes(Power, mean.k., label = Power)) +
-  geom_point() +
-  geom_text(nudge_y = 0.1) +
-  labs(x = "Power", y = "Mean Connectivity") +
-  theme_classic()
-
-grid.arrange(p1, p2)
-```
-
 # Module detection
 
 ```{r}
 temp_cor <- cor
 cor <- WGCNA::cor
 
-adjacency <- adjacency(t(df_WGCNA), power = sft$powerEstimate, type = "signed") 
-
-TOM <- TOMsimilarity(adjacency, TOMType = "signed")
+TOM <- TOMsimilarity(cor_df, TOMType = "signed")
 
 dissTOM <- 1 - TOM
 
@@ -103,12 +74,11 @@ plotDendroAndColors(geneTree, dynamicColors,
 clusters_WGCNA <- as.data.frame(dynamicMods)
 ```
 
-# Select Cluster
+# Cluster Enrichment
 
 ```{r}
-table(clusters_WGCNA)
-
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 3]
+table(clusters_WGCNA) # All clusters
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 1]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -117,13 +87,8 @@ res <- select(
     keys = cluster_members_WGCNA,
     to = "Gene_Name"
 )
-```
 
-# Enrichment
-
-```{r}
 # List of databases: View(listEnrichrDbs())
-
 dbs <- c("WikiPathway_2023_Human", "GO_Molecular_Function_2023", "KEGG_2021_Human")
 enriched_WGCNA <- enrichr(res$To, dbs)
 plotEnrich(enriched_WGCNA[[3]], showTerms = 10, numChar = 40, y = "Ratio")
