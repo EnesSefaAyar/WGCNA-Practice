@@ -93,39 +93,48 @@ for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
   
   df <- df[var >= quantile(var, i), ]
   
-  cor_df <- cor(t(df[, ]), method = "pearson")
+  cor_df <- rcorr(t(df[, ]), type = "pearson")
   
-  diag(cor_df) <- NA
+  diag(cor_df$r) <- NA
+  diag(cor_df$P) <- NA
   
-  cor_vals <- as.vector(cor_df)
+  cor_vals <- as.vector(cor_df$r)
   cor_vals <- cor_vals[!is.na(cor_vals)]
   
-  df <- DataFrame(values = cor_vals, 
+  p_vals <- as.vector(cor_df$P)
+  p_vals <- p_vals[!is.na(p_vals)]
+  
+  df <- DataFrame(r = cor_vals,
+                  p = p_vals,
                   quant = rep.int(i, length(cor_vals)))
+  
   all_quantile <- rbind(all_quantile, df)
 }
 
 all_quantile <- as.data.frame(all_quantile)
-
 ```
 
 # Plots
 
 ```{r}
+filtered_all_quantile <- all_quantile
+
+filtered_all_quantile <- all_quantile[all_quantile$p < 0.05, ]
+
 # Multiple plots
-ggplot(all_quantile, aes(x = values, groups = as.factor(quant), col = as.factor(quant))) +
+ggplot(filtered_all_quantile, aes(x = r, groups = as.factor(quant), col = as.factor(quant))) +
     geom_density(adjust = 1.5, alpha = .4)
 
-ggplot(all_quantile, aes(x = values, groups = as.factor(quant), col = as.factor(quant))) +
+ggplot(filtered_all_quantile, aes(x = r, groups = as.factor(quant), col = as.factor(quant))) +
     geom_histogram() +
     facet_wrap(~quant) +
     theme_classic()
 
-ggplot(all_quantile, aes(x = as.factor(quant), y = values, fill = as.factor(quant))) + 
+ggplot(filtered_all_quantile, aes(x = as.factor(quant), y = r, fill = as.factor(quant))) + 
     geom_boxplot() +
     theme_classic()
 
-ggplot(all_quantile, aes(y = values, fill = as.factor(quant), x = as.factor(quant))) +
+ggplot(filtered_all_quantile, aes(y = r, fill = as.factor(quant), x = as.factor(quant))) +
     geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
     theme_classic()
 ```

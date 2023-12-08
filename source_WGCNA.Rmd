@@ -43,13 +43,26 @@ df_WGCNA <- assay(scp_sub)
 
 # Highly Variable features
 var <- apply(df_WGCNA, 1, var)
-df_WGCNA <- df_WGCNA[var >= quantile(var, 0.5), ]
+df_WGCNA <- df_WGCNA[var < quantile(var, 0.5), ]
 dim(df_WGCNA)
 
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "proteins_NA", fun = colMedians)
+  
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.9999)
+
+# More missing
+prots <- setdiff(rownames(assay(scp[["proteins"]])), rownames(scp_NA[["proteins_NA"]]))
+
+# Less missing
+prots <- rownames(scp_NA[["proteins_NA"]])
+
+length(prots)
+
+df_WGCNA <- assay(scp[["proteins"]])[prots, ]
+
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
-
-View(as.data.frame(rowData(scp[["peptides"]])))
-
 ```
 
 # Module detection
@@ -80,11 +93,12 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 
 ```{r}
 table(clusters_WGCNA) # All clusters
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 2]
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 4]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
-res <- select(
+
+res <- AnnotationDbi::select(
     x = up,
     keys = cluster_members_WGCNA,
     to = "Gene_Name"

@@ -43,11 +43,28 @@ df_CPM <- assay(scp_sub)
 
 # Highly Variable features
 var <- apply(df_CPM, 1, var)
-df_CPM <- df_CPM[var >= quantile(var, 0.5), ]
+df_CPM <- df_CPM[var < quantile(var, 0.5), ]
 dim(df_CPM)
 
-cor_df <- cor(t(df_CPM[, ]), method = "pearson")
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "proteins_NA", fun = colMedians)
+  
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
 
+# More missing part
+prots <- setdiff(rownames(assay(scp[["proteins"]])), rownames(scp_NA[["proteins_NA"]]))
+
+# Less missing
+prots <- rownames(scp_NA[["proteins_NA"]])
+
+length(prots)
+
+df_CPM <- assay(scp[["proteins"]])[prots, ]
+
+
+
+cor_df <- cor(t(df_CPM[, ]), method = "pearson")
 ```
 
 # Order based on correlations
@@ -88,12 +105,12 @@ memberships_CPM <- as.data.frame(memberships_CPM)
 # Choose a cluster
 table(memberships_CPM)
 
-cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 1]
+cluster_members_CPM <- rownames(cor_df)[memberships_CPM$memberships_CPM == 3]
 length(cluster_members_CPM)
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
-res <- select(
+res <- AnnotationDbi::select(
     x = up,
     keys = cluster_members_CPM,
     to = "Gene_Name"
