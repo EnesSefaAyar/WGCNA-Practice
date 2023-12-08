@@ -47,6 +47,7 @@ df_CPM <- df_CPM[var >= quantile(var, 0.5), ]
 dim(df_CPM)
 
 cor_df <- cor(t(df_CPM[, ]), method = "pearson")
+
 ```
 
 # Order based on correlations
@@ -55,11 +56,14 @@ cor_df <- cor(t(df_CPM[, ]), method = "pearson")
 # Cluster and order the data frame
 ordered_cor_df <- cluster_matrix(cor_df, dim = "both", method = "average")
 
+diag(ordered_cor_df) <- 0
+
 # Plot the heat-map
 temp <- ordered_cor_df
 pheatmap(temp,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
-         breaks = seq(from = -1, to = 1, length.out = 101),
+         breaks = seq(from = min(ordered_cor_df), to = max(ordered_cor_df), 
+                      length.out = 101),
          border_color = NA,legend = FALSE, show_colnames = FALSE,
          show_rownames = FALSE,
          cluster_rows = FALSE, cluster_cols = FALSE,

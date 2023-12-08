@@ -1,0 +1,131 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load Data
+
+```{r}
+scp <- specht2019v3() # Load specific data set
+
+# Subset same type of cells
+scp_sub <- getWithColData(scp, "proteins")
+scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
+dim(scp_sub) # check dimensions
+
+```
+
+# NA effect in correlations
+
+```{r}
+all_pNA <- DataFrame()
+
+for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
+  scp_NA <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "proteins_NA", fun = colSums)
+  
+  scp_NA <- filterNA(scp_NA, i = "proteins_NA", pNA = i)
+
+  df <- assay(scp[["proteins"]])[rownames(scp_NA[["proteins_NA"]]), ]
+  
+  cor_df <- rcorr(t(df[, ]), type = "pearson")
+  
+  diag(cor_df$r) <- NA
+  diag(cor_df$P) <- NA
+  
+  cor_vals <- as.vector(cor_df$r)
+  cor_vals <- cor_vals[!is.na(cor_vals)]
+  
+  p_vals <- as.vector(cor_df$P)
+  p_vals <- p_vals[!is.na(p_vals)]
+  
+  df <- DataFrame(r = cor_vals,
+                  p = p_vals,
+                  pNA = rep.int(i, length(cor_vals)))
+  
+  all_pNA <- rbind(all_pNA, df)
+}
+
+all_pNA <- as.data.frame(all_pNA)
+```
+
+# Plots
+
+```{r}
+# Filter
+filtered_all_pNA <- all_pNA
+
+filtered_all_pNA <- all_pNA[all_pNA$p < 0.05, ]
+
+# Multiple plots
+ggplot(filtered_all_pNA, aes(x = r, groups = as.factor(pNA), col = as.factor(pNA))) +
+    geom_density(adjust = 1.5, alpha = .4) +
+    theme_classic()
+
+
+ggplot(filtered_all_pNA, aes(x = r, groups = as.factor(pNA), col = as.factor(pNA))) +
+    geom_histogram() +
+    facet_wrap(~pNA) +
+    theme_classic()
+
+ggplot(filtered_all_pNA, aes(x = as.factor(pNA), y = r, fill = as.factor(pNA))) + 
+    geom_boxplot() +
+    theme_classic()
+
+ggplot(filtered_all_pNA, aes(y = r, fill = as.factor(pNA), x = as.factor(pNA))) +
+    geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
+    theme_classic()
+```
+
+# Highly Variable Effect
+
+```{r}
+all_quantile <- DataFrame()
+
+for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
+  
+  # Extract assay only
+  df <- assay(scp[["proteins"]])
+  
+  # Highly Variable features
+  var <- apply(df, 1, var)
+  
+  df <- df[var >= quantile(var, i), ]
+  
+  cor_df <- cor(t(df[, ]), method = "pearson")
+  
+  diag(cor_df) <- NA
+  
+  cor_vals <- as.vector(cor_df)
+  cor_vals <- cor_vals[!is.na(cor_vals)]
+  
+  df <- DataFrame(values = cor_vals, 
+                  quant = rep.int(i, length(cor_vals)))
+  all_quantile <- rbind(all_quantile, df)
+}
+
+all_quantile <- as.data.frame(all_quantile)
+
+```
+
+# Plots
+
+```{r}
+# Multiple plots
+ggplot(all_quantile, aes(x = values, groups = as.factor(quant), col = as.factor(quant))) +
+    geom_density(adjust = 1.5, alpha = .4)
+
+ggplot(all_quantile, aes(x = values, groups = as.factor(quant), col = as.factor(quant))) +
+    geom_histogram() +
+    facet_wrap(~quant) +
+    theme_classic()
+
+ggplot(all_quantile, aes(x = as.factor(quant), y = values, fill = as.factor(quant))) + 
+    geom_boxplot() +
+    theme_classic()
+
+ggplot(all_quantile, aes(y = values, fill = as.factor(quant), x = as.factor(quant))) +
+    geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
+    theme_classic()
+```
