@@ -24,16 +24,20 @@ library(gridExtra)
 library(UniProt.ws)
 library(enrichR)
 library(pheatmap)
+library(Hmisc)
 ```
 
 # Load data
 
 ```{r}
 # View(as.data.frame(scpdata())) # Available data sets
-
 scp <- specht2019v3() # Load specific data set
+```
 
-# Subset same type of cells
+# Cell Type + Batch
+
+```{r}
+# Subset same type of cells (cell type + batch)
 scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
 dim(scp_sub) # check dimensions
@@ -41,27 +45,53 @@ dim(scp_sub) # check dimensions
 # Extract assay only
 df_WGCNA <- assay(scp_sub)
 
+# Calculate correlations
+cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
+```
+
+# Variable Features
+
+```{r}
+# Extract assay only
+df_WGCNA <- assay(scp[["proteins"]])
+
 # Highly Variable features
 var <- apply(df_WGCNA, 1, var)
+
+# Most variable 50%
+df_WGCNA <- df_WGCNA[var >= quantile(var, 0.5), ]
+
+# Least variable 50%
 df_WGCNA <- df_WGCNA[var < quantile(var, 0.5), ]
+
+# Check dimensions
 dim(df_WGCNA)
 
+# Calculate correlations
+cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
+```
+
+# Missing Values
+
+```{r}
 # Missing Values
 scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
                                     name = "proteins_NA", fun = colMedians)
-  
+
+# more than 99.99% missing
 scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.9999)
 
-# More missing
 prots <- setdiff(rownames(assay(scp[["proteins"]])), rownames(scp_NA[["proteins_NA"]]))
-
-# Less missing
-prots <- rownames(scp_NA[["proteins_NA"]])
-
 length(prots)
-
 df_WGCNA <- assay(scp[["proteins"]])[prots, ]
 
+# Less than 96.5% missing
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
+prots <- rownames(scp_NA[["proteins_NA"]])
+length(prots)
+df_WGCNA <- assay(scp[["proteins"]])[prots, ]
+
+# Calculate correlations
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
 ```
 
@@ -93,7 +123,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 
 ```{r}
 table(clusters_WGCNA) # All clusters
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 4]
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 1]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)

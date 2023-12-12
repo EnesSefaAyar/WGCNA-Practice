@@ -51,55 +51,69 @@ for (protein in rownames(assay(scp[["proteins"]]))) {
 all_cor_df <- all_cor_df[!duplicated(all_cor_df), ]
 all_cor_df <- all_cor_df[!is.na(all_cor_df[c(5)]), ]
 all_cor_df <- all_cor_df[all_cor_df$p != 0, ]
-all_cor_df <- all_cor_df[all_cor_df$p < 0.01, ]
-
-View(as.data.frame(all_cor_df))
+all_cor_df <- all_cor_df[all_cor_df$p < 0.1, ]
 
 ggplot() + aes(all_cor_df$r)+ geom_histogram(binwidth = 0.1,
                                         colour = "black", fill = "white")
 ```
 
-# Between peptides of different proteins
+# Filter anti-correlated
 
 ```{r}
-df <- as.data.frame(rowData(scp[["peptides"]]))
+all_cor_df <- as.data.frame(all_cor_df)
+View(all_cor_df)
 
-peptide_assay <- assay(scp[["peptides"]])
+# Identify anti-correlated peptides
+to_be_removed <- c()
 
-all_cor_df <- DataFrame()
+# O43707
+t <- 0
 
-for (protein in rownames(assay(scp[["proteins"]]))) {
-  
-  peptides <- as.vector(df[, "peptide"][df[, "protein"] == protein])
-  sub_pep_assay <- peptide_assay[peptides, ]
-  
-  if (length(peptides) >= 2) {
-    res <- rcorr(t(sub_pep_assay), type = "pearson")
-    ind <- which(upper.tri(res$r), arr.ind = TRUE)
-    nn <- dimnames(res$r)
-    temp_df <- data.frame(protein = rep(protein, length(ind)),
-                          peptide1 = nn[[1]][ind[, 1]],
-                          peptide2 = nn[[2]][ind[, 2]],
-                          r = res$r[ind],
-                          p = res$P[ind])
-    all_cor_df <- rbind(all_cor_df, temp_df)
-  }
+for (protein in unique(all_cor_df$protein)) {
+    sub_all <- all_cor_df[all_cor_df$protein == protein, ]
+    sub_all <- sub_all[order(sub_all$r), ]
+    
+    anti_peptides <- unique(c(sub_all[sub_all$r < 0, ]$peptide1,
+                         sub_all[sub_all$r < 0, ]$peptide2))
+    
+    t <- t + 1
+    print(100*t/length(unique(all_cor_df$protein)))
+    
+    test <- sub_all
+    combination <- c()
+    l <- length(anti_peptides)
+    i <- 0
+    if (l < 20) {
+      while (any(test$r < 0)) {
+        test <- sub_all
+        i <- i + 1
+        combination <- combn(anti_peptides, i%/%l + 1)[, i%%l]
+        test <- subset(test, !(peptide1 %in% combination) &
+                             !(peptide2 %in% combination))
+      
+      }
+    
+      }else {
+        
+        while (any(test$r < 0)) {
+          test <- sub_all
+          i <- i + 1
+          combination <- combn(anti_peptides, i%/%l + 1)[, i%%l]
+          test <- subset(test, !(peptide1 %in% combination) &
+                               !(peptide2 %in% combination))
+          }
+        }
+    to_be_removed <- c(to_be_removed, combination)
 }
 
-all_cor_df <- all_cor_df[!duplicated(all_cor_df), ]
-all_cor_df <- all_cor_df[!is.na(all_cor_df[c(5)]), ]
-all_cor_df <- all_cor_df[all_cor_df$p != 0, ]
-all_cor_df <- all_cor_df[all_cor_df$p < 0.01, ]
+length(to_be_removed)
 
-View(as.data.frame(all_cor_df))
+test <- subset(all_cor_df, !(all_cor_df$peptide1 %in% to_be_removed))
+test <- subset(test, !(test$peptide2 %in% to_be_removed))
 
-ggplot() + aes(all_cor_df$r)+ geom_histogram(binwidth = 0.1,
+View(test)
+
+ggplot() + aes(test$r)+ geom_histogram(binwidth = 0.1,
                                         colour = "black", fill = "white")
 ```
-
-
-
-
-
-
 

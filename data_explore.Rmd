@@ -4,6 +4,18 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Import
+
+```{r}
+library(scp)
+library(scpdata)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(textshape)
+library(Hmisc)
+```
+
 # Load Data
 
 ```{r}
@@ -73,8 +85,9 @@ ggplot(filtered_all_pNA, aes(x = as.factor(pNA), y = r, fill = as.factor(pNA))) 
     geom_boxplot() +
     theme_classic()
 
-ggplot(filtered_all_pNA, aes(y = r, fill = as.factor(pNA), x = as.factor(pNA))) +
+ggplot(filtered_all_pNA, aes(y = r, x = as.factor(pNA))) +
     geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
+    labs(x = "pNA Threshold", y = "Pearson Correlation")
     theme_classic()
 ```
 
@@ -83,7 +96,7 @@ ggplot(filtered_all_pNA, aes(y = r, fill = as.factor(pNA), x = as.factor(pNA))) 
 ```{r}
 all_quantile <- DataFrame()
 
-for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
+for (i in seq(from = 0.1, to = 0.6, by = 0.1)) {
   
   # Extract assay only
   df <- assay(scp[["proteins"]])
@@ -91,7 +104,7 @@ for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
   # Highly Variable features
   var <- apply(df, 1, var)
   
-  df <- df[var >= quantile(var, i), ]
+  df <- df[var < quantile(var, i), ]
   
   cor_df <- rcorr(t(df[, ]), type = "pearson")
   
@@ -134,7 +147,8 @@ ggplot(filtered_all_quantile, aes(x = as.factor(quant), y = r, fill = as.factor(
     geom_boxplot() +
     theme_classic()
 
-ggplot(filtered_all_quantile, aes(y = r, fill = as.factor(quant), x = as.factor(quant))) +
+ggplot(filtered_all_quantile, aes(y = r, x = as.factor(quant))) +
     geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
+    labs(x = "Least Variable Quantile", y = "Pearson Correlation")
     theme_classic()
 ```
