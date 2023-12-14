@@ -4,6 +4,7 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Import packages
 
 ```{r}
 library(Hmisc)
@@ -48,72 +49,165 @@ for (protein in rownames(assay(scp[["proteins"]]))) {
   }
 }
 
+
+
 all_cor_df <- all_cor_df[!duplicated(all_cor_df), ]
 all_cor_df <- all_cor_df[!is.na(all_cor_df[c(5)]), ]
 all_cor_df <- all_cor_df[all_cor_df$p != 0, ]
-all_cor_df <- all_cor_df[all_cor_df$p < 0.1, ]
+
+# all_cor_df$adj_p <- p.adjust(all_cor_df$p, method = "BH")
+all_cor_df <- all_cor_df[all_cor_df$p <= 0.05, ]
 
 ggplot() + aes(all_cor_df$r)+ geom_histogram(binwidth = 0.1,
-                                        colour = "black", fill = "white")
+                                        colour = "black", fill = "white") +
+  ylim(0, 3500)
+
+all_cor_df <- as.data.frame(all_cor_df)
+View(all_cor_df)
+```
+
+# Functions
+
+```{r}
+listPos <- function(df) {
+  all_peps <- unique(c(df$peptide1, df$peptide2))
+  positives <- c()
+  for (pep in all_peps) {
+    if (all(df[(df$peptide1 == pep) | (df$peptide2 == pep), ]$r > 0)) {
+      positives <- c(positives, pep)
+    }
+  }
+  return (positives)
+}
+
+listNeg <- function(df) {
+  all_peps <- unique(c(df$peptide1, df$peptide2))
+  negatives <- c()
+  for (pep in all_peps) {
+    if (all(df[(df$peptide1 == pep) | (df$peptide2 == pep), ]$r < 0)) {
+      negatives <- c(negatives, pep)
+    }
+  }
+  return (negatives)
+}
 ```
 
 # Filter anti-correlated
 
 ```{r}
-all_cor_df <- as.data.frame(all_cor_df)
-View(all_cor_df)
-
 # Identify anti-correlated peptides
 to_be_removed <- c()
 
-# O43707
-t <- 0
-
 for (protein in unique(all_cor_df$protein)) {
+    # All peps of a protein
     sub_all <- all_cor_df[all_cor_df$protein == protein, ]
-    sub_all <- sub_all[order(sub_all$r), ]
     
-    anti_peptides <- unique(c(sub_all[sub_all$r < 0, ]$peptide1,
+    ### Peptides having only positive correlation ###
+    pos_peptides <- listPos(sub_all)
+
+    # Extend these peptides with their correlation partners
+    sub_pos <- subset(sub_all, (peptide1 %in% pos_peptides) |
+                               (peptide2 %in% pos_peptides))
+    pos_peptides <- unique(c(sub_pos$peptide1, sub_pos$peptide2))
+    
+    
+    ### Peptides having only negative correlation ###
+    neg_peptides <- listNeg(sub_all)
+    
+    to_be_removed <- c(to_be_removed, neg_peptides)
+    
+    # Extend these peptides with their correlation partners
+    sub_neg <- subset(sub_all, (peptide1 %in% neg_peptides) |
+                               (peptide2 %in% neg_peptides))
+    
+    # Correlation partners of neg_peptides should be pos_peptides
+    neg_peptides2 <- unique(c(sub_neg$peptide1, sub_neg$peptide2))
+    pos_peptides <- c(pos_peptides, setdiff(neg_peptides2, neg_peptides))
+    
+    # Extend further with all possible
+    for (i in 1:5) {
+      sub_pos <- subset(sub_all, ((peptide1 %in% pos_peptides) | (peptide2 %in% pos_peptides)) & r > 0)
+    
+      pos_peptides <- unique(c(pos_peptides, c(sub_pos$peptide1, sub_pos$peptide2)))
+    }
+    
+    # Determine peptides can be removed
+    sub_all <- subset(sub_all, (peptide1 %in% pos_peptides) |
+                               (peptide2 %in% pos_peptides))
+    
+    suspects <- unique(c(sub_all[sub_all$r < 0, ]$peptide1, 
                          sub_all[sub_all$r < 0, ]$peptide2))
     
-    t <- t + 1
-    print(100*t/length(unique(all_cor_df$protein)))
-    
-    test <- sub_all
-    combination <- c()
-    l <- length(anti_peptides)
-    i <- 0
-    if (l < 20) {
-      while (any(test$r < 0)) {
-        test <- sub_all
-        i <- i + 1
-        combination <- combn(anti_peptides, i%/%l + 1)[, i%%l]
-        test <- subset(test, !(peptide1 %in% combination) &
-                             !(peptide2 %in% combination))
-      
-      }
-    
-      }else {
-        
-        while (any(test$r < 0)) {
-          test <- sub_all
-          i <- i + 1
-          combination <- combn(anti_peptides, i%/%l + 1)[, i%%l]
-          test <- subset(test, !(peptide1 %in% combination) &
-                               !(peptide2 %in% combination))
-          }
-        }
-    to_be_removed <- c(to_be_removed, combination)
+    to_be_removed <- c(to_be_removed, setdiff(suspects, pos_peptides))
 }
 
-length(to_be_removed)
-
-test <- subset(all_cor_df, !(all_cor_df$peptide1 %in% to_be_removed))
-test <- subset(test, !(test$peptide2 %in% to_be_removed))
-
-View(test)
-
-ggplot() + aes(test$r)+ geom_histogram(binwidth = 0.1,
-                                        colour = "black", fill = "white")
 ```
+
+```{r}
+length(unique(to_be_removed))
+
+all_positive <- subset(all_cor_df, !((peptide1 %in% to_be_removed) |
+                               (peptide2 %in% to_be_removed)))
+View(all_positive)
+
+hist(setdiff(all_cor_df, all_positive)$r)
+```
+
+# Correlation change after removing anti-correlated peptides
+
+```{r}
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "old_proteins", fun = colMedians)
+
+prots_altered <- rowData(scp[["peptides"]][rowData(scp[["peptides"]])$peptide %in% to_be_removed, ])$protein
+
+scp[["peptides"]] <- scp[["peptides"]][!(rowData(scp[["peptides"]])$peptide %in% to_be_removed), ]
+
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "new_proteins", fun = colMedians)
+
+df_new <- assay(scp[["new_proteins"]])
+df_new <- df_new[rownames(df_new) %in% prots_altered, ]
+
+df_old <- assay(scp[["old_proteins"]])
+df_old <- df_old[rownames(df_old) %in% rownames(df_new), ]
+
+res <- rcorr(t(df_old), type = "pearson")
+cor_old <- res$r
+diag(cor_old) <- NA
+
+res <- rcorr(t(df_new), type = "pearson")
+cor_new <- res$r
+diag(cor_new) <- NA
+
+dim(cor_new)
+
+old_vals <- cor_old[!is.na(cor_old)]
+
+new_vals <- cor_new[!is.na(cor_new)]
+
+old_df <- data.frame(r = old_vals,
+                     type = rep("All Peptides", length(old_vals)))
+
+new_df <- data.frame(r = new_vals,
+                     type = rep("Removed Peptides", length(new_vals)))
+
+ggplot(rbind(old_df, new_df), aes(y = r, x = as.factor((type)))) + 
+    geom_boxplot() +
+    geom_jitter(color = "black", size = 0.5, alpha = 1) +
+    theme_classic()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
