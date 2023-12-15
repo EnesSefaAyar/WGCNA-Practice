@@ -142,16 +142,56 @@ for (protein in unique(all_cor_df$protein)) {
 
 ```
 
+# Alternative
+
+```{r}
+# Identify anti-correlated peptides
+to_be_removed <- c()
+
+l = length(unique(all_cor_df$protein))
+i <- 0
+for (protein in unique(all_cor_df$protein)) {
+    
+    i <- i + 1
+    
+    print(100*i/l)
+    
+    # All peps of a protein
+    sub_all <- all_cor_df[all_cor_df$protein == protein, ]
+    
+    sub_neg <- sub_all[sub_all$r < 0, ]
+    
+    all_neg <- c(sub_neg$peptide1, sub_neg$peptide2)
+    
+    while (length(all_neg) > 0) {
+      most_connected <- sort(table(all_neg), decreasing = TRUE)[1]
+      most_connected <- names(most_connected)[1]
+      to_be_removed <- c(to_be_removed, most_connected)
+      sub_neg <- sub_neg[!(sub_neg$peptide1 == most_connected |
+                           sub_neg$peptide2 == most_connected), ]
+      
+      all_neg <- c(sub_neg$peptide1, sub_neg$peptide2)
+    }
+}
+
+```
+
 ```{r}
 length(unique(to_be_removed))
 
 all_cleaned <- subset(all_cor_df, !((peptide1 %in% to_be_removed) |
                                (peptide2 %in% to_be_removed)))
 
+View(all_cleaned)
 # Histogram of removed peptides' correlations
+ggplot() + aes(all_cleaned$r)+ geom_histogram(binwidth = 0.1,
+                                        colour = "black", fill = "white") +
+  ylim(0, 2000)
+
+
 ggplot() + aes(setdiff(all_cor_df, all_cleaned)$r)+ geom_histogram(binwidth = 0.1,
                                         colour = "black", fill = "white") +
-  ylim(0, 200)
+  ylim(0, 2000)
 ```
 
 # Correlation change after removing anti-correlated peptides
@@ -170,18 +210,18 @@ scp <- aggregateFeaturesOverAssays(scp, i = "peptides2", fcol = "protein",
                                     name = "new_proteins", fun = colMedians)
 
 df_new <- assay(scp[["new_proteins"]])
-df_new <- df_new[rownames(df_new) %in% prots_altered, ]
 
 df_old <- assay(scp[["old_proteins"]])
-df_old <- df_old[rownames(df_old) %in% rownames(df_new), ]
 
 res <- rcorr(t(df_old), type = "pearson")
 cor_old <- res$r
 diag(cor_old) <- NA
+cor_old <- cor_old[rownames(cor_old) %in% prots_altered, ]
 
 res <- rcorr(t(df_new), type = "pearson")
 cor_new <- res$r
 diag(cor_new) <- NA
+cor_new <- cor_new[rownames(cor_new) %in% prots_altered, ]
 
 old_vals <- cor_old[!is.na(cor_old)]
 
@@ -195,7 +235,8 @@ new_df <- data.frame(r = new_vals,
 
 ggplot(rbind(old_df, new_df), aes(y = r, x = as.factor((type)))) + 
     geom_boxplot() +
-    geom_jitter(color = "black", size = 0.5, alpha = 1) +
+    geom_jitter(color = "black", size = 0.05, alpha = 0.4) +
     theme_classic()
+
 ```
 
