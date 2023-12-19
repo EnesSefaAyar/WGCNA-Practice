@@ -5,6 +5,8 @@ date: "25/7/2022"
 output:
   pdf_document: default
   html_document: default
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -18,54 +20,73 @@ library(dplyr)
 ```
 
 ```{r}
-#Load the RNA-seq dataset of normalized counts. This includes 12 samples, 3 females and 3 males at E.12.5 and and 3 females and 3 males at E.16.5. The datasat includes 14,089 genes. 
-setwd("~/path/to/my_directory_that_contains_WGCNADEGs_folder")
-datExpr0 <-as.data.frame(normalized_counts_ok)
-rownames(datExpr0)<-datExpr0$Mouse
-datExpr0<-datExpr0[,-1]
-datExpr0<-as.matrix(datExpr0)
+# Load the RNA-seq dataset of normalized counts. This includes 12 samples, 
+# 3 females and 3 males at E.12.5 and and 3 females and 3 males at E.16.5.
+# The datasat includes 14,089 genes. 
+
+dir <- "~/WGCNA-Practice/data/GSE117590_All_FPKM.txt"
+
+df <- read.csv(dir, sep = "\t")
+
+datExpr0 <-as.data.frame(df)
+rownames(datExpr0)<-datExpr0$GeneID
+datExpr0 <- datExpr0[, -c(1, 26, 27, 28, 29, 30)]
+
+datExpr0 <- log1p(as.matrix(datExpr0))
+
+datExpr0 <- scale(datExpr0, center = TRUE, scale = TRUE)
+
+datExpr0 <- t(datExpr0)
 ```
 
 ## 2. Sample outlier detecction
-We produce a sample dendrogram to visualize potential outliers. We set the thershold at height=30 because it removes the highest sample, F2_S2.
+We produce a sample dendrogram to visualize potential outliers. 
+We set the threshold at height = 30 because it removes the highest sample, F2_S2
+
 ```{r}
 sampleTree = hclust(dist(datExpr0), method = "average");
+
 # Plot the sample tree: Open a graphic output window of size 12 by 9 inches
 # The user should change the dimensions if the window is too large or too small.
-sizeGrWindow(12,9)
-#pdf(file = "Plots/sampleClustering.pdf", width = 12, height = 9);
+sizeGrWindow(12, 9)
 par(cex = 0.6);
 par(mar = c(0,4,2,0))
-plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, 
-     cex.axis = 1.5, cex.main = 2)
+plot(sampleTree, main = "Sample clustering to detect outliers",
+     sub = "", xlab = "", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
 abline(h = 30, col = "red");
 
 ```
-Now, we eliminate the sample and double check. To eliminate the sample we keep all that are grouped at least in groups of 2 and below the height of 30. The variable clust contains the information on which group is each sample. Filter by the ones you want to keep. In this case we keep all that are not listed in group 0.
-```{r}
 
+Now, we eliminate the sample and double check. To eliminate the sample we keep
+all that are grouped at least in groups of 2 and below the height of 30. 
+The variable clust contains the information on which group is each sample. 
+Filter by the ones you want to keep. In this case we keep all that are not
+listed in group 0.
+
+```{r}
 # Determine cluster under the line
-clust = cutreeStatic(sampleTree, cutHeight = 30, minSize = 2)
+clust <-  cutreeStatic(sampleTree, cutHeight = 30, minSize = 2)
 table(clust)
+
 # clust 1 contains the samples we want to keep.
-keepSamples = (clust!=0)
-datExpr = datExpr0[keepSamples, ]
-nGenes = ncol(datExpr)
-nSamples = nrow(datExpr)
-sampleTree = hclust(dist(datExpr), method = "average");
+keepSamples <- (clust != 0)
+datExpr <- datExpr0[keepSamples, ]
+nGenes <- ncol(datExpr)
+nSamples <- nrow(datExpr)
+sampleTree <- hclust(dist(datExpr), method = "average")
 par(cex = 0.6);
 par(mar = c(0,4,2,0))
-plot(sampleTree, main = "Sample clustering without outliers", sub="", xlab="", cex.lab = 1.5, 
-     cex.axis = 1.5, cex.main = 2)
+plot(sampleTree, main = "Sample clustering without outliers",
+     sub = "", xlab = "", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+
 # Plot a line to show the cut
 abline(h = 30, col = "red")
-
 ```
 ## 3. Load sample traits data
 
 Now we load a txt file containing the samples trait data and we will join them with expression data object.
 ```{r}
-traitData<- MouseTraits_12_16
+traitData <- read.csv(MouseTraits_12_16)
 dim(traitData)
 names(traitData)
 # remove columns that hold information we do not need.
