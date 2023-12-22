@@ -71,12 +71,13 @@ dim(df_WGCNA)
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
 ```
 
-# Missing Values
+# Missing Values by features
 
 ```{r}
 # Missing Values
 scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                    name = "proteins_NA", fun = colMedians)
+                                   name = "proteins_NA", 
+                                   fun = colMedians, na.rm = TRUE)
 
 # more than 99.99% missing
 scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.9999)
@@ -95,6 +96,24 @@ df_WGCNA <- assay(scp[["proteins"]])[prots, ]
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
 ```
 
+# Missing Values by samples
+
+```{r}
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                   name = "proteins_NA", 
+                                   fun = colMedians, na.rm = TRUE)
+
+mtx <- assay(scp[["proteins_NA"]])
+
+df_WGCNA <- mtx[, colMeans(is.na(mtx)) < 0.84]
+
+res <- rcorr(df_WGCNA, type = "pearson")
+cor_df <- res$r
+
+hist(colMeans(is.na(mtx)))
+```
+
 # Module detection
 
 ```{r}
@@ -109,7 +128,7 @@ dissTOM <- 1 - TOM
 geneTree <- hclust(as.dist(dissTOM), method = "average")
 
 #This sets the minimum number of genes to cluster into a module
-dynamicMods <- cutreeDynamic(geneTree, minClusterSize = 15)
+dynamicMods <- cutreeDynamic(geneTree, minClusterSize = 50)
 
 plotDendroAndColors(geneTree, labels2colors(dynamicMods),
                     c("Dynamic Tree Cut"),
@@ -123,7 +142,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 
 ```{r}
 table(clusters_WGCNA) # All clusters
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 1]
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 3]
 
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
@@ -155,15 +174,14 @@ for (i in 1:length(res$To)) {
   }
 }
 
-temp_df <- cor_df[enriched_prots, enriched_prots]
+temp_df <- ordered_cor_df
 pheatmap(temp_df,
          color = colorRampPalette(c("#4d72af", "white", "#c44e53")) (101),
          breaks = seq(from = -1, to = 1, length.out = 101),
          border_color = NA,legend = FALSE, show_colnames = FALSE,
-         show_rownames = TRUE,
+         show_rownames = FALSE,
          cluster_rows = FALSE, cluster_cols = FALSE,
-         cellwidth = 550/nrow(temp_df), cellheight = 550/nrow(temp_df),
-         fontfamily = 'sans', fontsize = 10,
-         display_numbers = round(temp_df, 2))
+         cellwidth = 500/nrow(temp_df), cellheight = 500/nrow(temp_df),
+         fontfamily = 'sans', fontsize = 10)
 ```
 

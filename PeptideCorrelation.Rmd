@@ -61,7 +61,7 @@ all_cor_df <- all_cor_df[all_cor_df$p <= 0.05, ]
 all_cor_df <- as.data.frame(all_cor_df)
 ```
 
-# Plot
+# Plot histogram of correlations
 
 ```{r}
 ggplot() + aes(all_cor_df$r)+ geom_histogram(binwidth = 0.1,
@@ -144,7 +144,7 @@ for (protein in unique(all_cor_df$protein)) {
 to_be_removed <- unique(to_be_removed)
 ```
 
-# Plot removed peptides
+# Plot histogram of removed peptides
 
 ```{r}
 length(to_be_removed)
@@ -163,24 +163,16 @@ ggplot() + aes(setdiff(all_cor_df, all_cleaned)$r)+ geom_histogram(binwidth = 0.
 ```{r}
 # Aggregate with all peptides
 scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                    name = "proteins_w_all", fun = colMeans)
+                                    name = "proteins_w_all", 
+                                   fun = colMeans, na.rm = TRUE)
 
 # Filter the anti-correlated peptides
 scp[["filtered_peptides"]] <- scp[["peptides"]][!(rowData(scp[["peptides"]])$peptide %in% to_be_removed), ]
 
 # Aggregate with filtered peptides
 scp <- aggregateFeaturesOverAssays(scp, i = "filtered_peptides", fcol = "protein", 
-                                    name = "proteins_w_filtered", fun = colMeans)
-
-# Aggregate with random peptides
-random_removed <- sample(rowData(scp[["peptides"]])$peptide, length(unique(to_be_removed))) 
-
-# Filter some random peptides
-scp[["random_peptides"]] <- scp[["peptides"]][!(rowData(scp[["peptides"]])$peptide %in% random_removed), ]
-
-# Aggregate with random peptides
-scp <- aggregateFeaturesOverAssays(scp, i = "random_peptides", fcol = "protein", 
-                                    name = "proteins_w_random", fun = colMeans)
+                                    name = "proteins_w_filtered", 
+                                   fun = colMeans, na.rm = TRUE)
 
 # Calculate correlations
 res <- rcorr(t(assay(scp[["proteins_w_all"]])), type = "pearson")
@@ -193,11 +185,6 @@ cor_filtered <- res$r
 p_filtered <- res$P
 diag(cor_filtered) <- NA
 
-res <- rcorr(t(assay(scp[["proteins_w_random"]])), type = "pearson")
-cor_random <- res$r
-p_random <- res$P
-diag(cor_random) <- NA
-
 # Remove NA in correlations and create dataframe for plotting
 all_df <- data.frame(r = cor_all[!is.na(cor_all)],
                      type = rep("All Peptides", length(cor_all[!is.na(cor_all)])))
@@ -205,22 +192,51 @@ all_df <- data.frame(r = cor_all[!is.na(cor_all)],
 filtered_df <- data.frame(r = cor_filtered[!is.na(cor_filtered)],
                      type = rep("Filtered Peptides", length(cor_filtered[!is.na(cor_filtered)])))
 
-random_df <- data.frame(r = cor_random[!is.na(cor_random)],
-                     type = rep("Random Peptides", length(cor_random[!is.na(cor_random)])))
 
-dim(random_df)
-dim(all_df)
-dim(filtered_df)
+ggplot(rbind(all_df, filtered_df), aes(x = as.factor(type), y = r)) + 
+    geom_boxplot() +
+    theme_classic()
+```
 
-dim(cor_filtered)
-dim(cor_all)
-dim(cor_random)
+# Random sampling 100 times
+
+```{r}
+rs <- c()
+for (i in 1:100) {
+  # Aggregate with random peptides
+  random_removed <- sample(rowData(scp[["peptides"]])$peptide, length(unique(to_be_removed))) 
+
+  # Filter some random peptides
+  scp[["random_peptides"]] <- scp[["peptides"]][!(rowData(scp[["peptides"]])$peptide %in% random_removed), ]
+
+  # Aggregate with random peptides
+  scp <- aggregateFeaturesOverAssays(scp, i = "random_peptides", fcol = "protein", 
+                                      name = "proteins_w_random",
+                                     fun = colMeans, na.rm = TRUE)
+  
+  res <- rcorr(t(assay(scp[["proteins_w_random"]])), type = "pearson")
+  cor_random <- res$r
+  p_random <- res$P
+  diag(cor_random) <- NA
+  
+  r <- cor_random[!is.na(cor_random)]
+  rs <- c(rs, length(r))
+  
+  scp <- removeAssay(scp, i = "random_peptides")
+  scp <- removeAssay(scp, i = "proteins_w_random")
+}
+
+rs_df <- data.frame(Number_of_Correlatins = rs, type = rep("RANDOM", length(rs)))
 
 
-# ggplot(rbind(all_df, filtered_df), aes(y = r, x = as.factor((type)))) + 
-#     geom_boxplot() +
-#     geom_jitter(color = "black", size = 0.01, alpha = 0.3) +
-#     theme_classic()
+
+rs_df <- rbind(rs_df, data.frame(Number_of_Correlatins = dim(all_df)[1], type = rep("ALL", 1)))
+rs_df <- rbind(rs_df, data.frame(Number_of_Correlatins = dim(filtered_df)[1], type = rep("FILTERED", 1)))
+
+ggplot(rs_df, aes(x = as.factor(type), y = Number_of_Correlatins)) + 
+    geom_boxplot() +
+    labs() +
+    theme_classic()
 ```
 
 # Check protein correlations
@@ -282,6 +298,6 @@ for (protein in unique(all_cor_df$protein)) {
       all_neg <- c(sub_neg$peptide1, sub_neg$peptide2)
     }
 }
-
+to_be_removed <- unique(to_be_removed)
 ```
 
