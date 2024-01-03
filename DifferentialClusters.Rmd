@@ -1,0 +1,179 @@
+---
+output: html_document
+editor_options: 
+chunk_output_type: console
+---
+
+# Install
+
+```{r. eval = FALSE}
+install.packages("textshape")
+install.packages("pheatmap")
+BiocManager::install("UniProt.ws")
+install.packages("enrichR")
+install.packages("dynamicTreeCut")
+install.packages('WGCNA')
+```
+
+# Import
+
+```{r}
+library(textshape)
+library(pheatmap)
+library(UniProt.ws)
+library(enrichR)
+library(scp)
+library(scpdata)
+library(dynamicTreeCut)
+library(Hmisc)
+library(WGCNA)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(reshape2)
+library(ggpubr)
+```
+
+# Load data
+
+```{r}
+# View(as.data.frame(scpdata())) # Available data sets
+scp <- specht2019v3() # Load specific data set
+```
+
+# Cell Type
+
+```{r}
+# Subset same type of cells (cell type)
+scp_sub <- getWithColData(scp, "proteins")
+scp_macro <- scp_sub[, scp_sub$SampleType == "Macrophage"]
+scp_mono <- scp_sub[, scp_sub$SampleType == "Monocyte"]
+
+# Check dimensions
+dim(scp_macro)
+dim(scp_mono)
+
+# Extract assays only
+df_macro <- assay(scp_macro)
+df_mono <- assay(scp_mono)
+
+# Calculate correlations
+cor_mono <- cor(t(df_mono[, ]), method = "pearson")
+cor_macro <- cor(t(df_macro[, ]), method = "pearson")
+```
+
+# CPM
+
+```{r}
+dist_mono <- 1 - cor_mono
+dist_macro <- 1 - cor_macro
+
+tree_mono <- hclust(as.dist(dist_mono), method = "average")
+tree_macro <- hclust(as.dist(dist_macro), method = "average")
+
+memberships_mono <- cutreeDynamic(tree_mono, distM = dist_mono, minClusterSize = 0)
+memberships_mono <- as.data.frame(memberships_mono)
+
+memberships_macro <- cutreeDynamic(tree_macro, distM = dist_macro, minClusterSize = 0)
+memberships_macro <- as.data.frame(memberships_macro)
+
+rownames(memberships_mono) <- rownames(cor_mono)
+rownames(memberships_macro) <- rownames(cor_macro)
+```
+
+# Order Modules
+
+```{r}
+eliminateMods <- function(cor_mat, clusters) {
+  df <- DataFrame()
+  diag(cor_mat) <- 0
+  col_name <- colnames(clusters)[1]
+  for (i in seq(from = min(clusters[[col_name]]), 
+           to = max(clusters[[col_name]]), 
+           by = 1)) {
+    cluster_members <- rownames(clusters)[clusters == i]
+    s <- mean(abs(cor_mat[cluster_members, cluster_members]))
+    df <- rbind(df, DataFrame(cluster = i, score = s, n = length(cluster_members)))
+  }
+  df <- df[order(df$score, decreasing = TRUE), ]
+  return (df)
+}
+
+new_class <- eliminateMods(cor_macro, memberships_macro)
+new_class <- new_class[new_class$n > 4, ]
+```
+
+# Calculate Change in Modules
+
+```{r}
+df <- DataFrame()
+for (i in new_class$cluster) {
+  cluster_mems <- rownames(memberships_macro)[memberships_macro == i]
+  temp_mono <- cor_mono[cluster_mems, cluster_mems]
+  temp_macro <- cor_macro[cluster_mems, cluster_mems]
+  diff <- mean(temp_mono - temp_macro)
+  df <- rbind(df, DataFrame(cluster = i, score = diff, n = length(cluster_mems) ))
+}
+
+df <- df[order(abs(df$score), decreasing = TRUE), ]
+df <- df[abs(df$score) > 0.1 & df$n <= 30, ]
+```
+
+# Plot
+
+```{r}
+
+for (i in 1:length(df$cluster)) {
+  cluster_mems <- rownames(memberships_macro)[memberships_macro == df$cluster[i]]
+  
+  # Plot the heat-maps
+  temp <- cor_mono[cluster_mems, cluster_mems]
+  melted_temp <- melt(temp)
+  g1 <- ggplot(melted_temp, aes(x = Var1, y = Var2, fill = value)) + 
+    geom_tile(show.legend = FALSE) + geom_text(aes(label = round(value, 2)),
+                                               size = 2.3 - length(cluster_mems)/45) +
+    scale_fill_gradient2(low = "#4d72af", mid = "white", high = "#c44e53",
+                     midpoint = 0, breaks = seq(-1, 1, 0.25), limits = c(-1, 1)) + 
+    theme(axis.text.y = element_text(angle = 0, hjust = 1, 
+          size = 8 - length(cluster_mems)/45), axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+          axis.title.y = element_blank()) +
+    labs(title = "Monocyte")
+  
+  temp <- cor_macro[cluster_mems, cluster_mems]
+  melted_temp <- melt(temp)
+  g2 <- ggplot(melted_temp, aes(x = Var1, y = Var2, fill = value)) + 
+    geom_tile(show.legend = FALSE) + geom_text(aes(label = round(value, 2)),
+                                               size = 2.3 - length(cluster_mems)/45) +
+    scale_fill_gradient2(low = "#4d72af", mid = "white", high = "#c44e53",
+                     midpoint = 0, breaks = seq(-1, 1, 0.25), limits = c(-1, 1)) + 
+    theme(axis.text.y = element_blank(),axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+          axis.title.y = element_blank())+
+    labs(title = "Macrophage")
+  
+  g3 <- ggarrange(g1, g2, width = 50, height = 40)
+  ggsave(paste0("~/WGCNA-Practice/output/differential/", i, ".pdf"))
+}
+```
+
+# Enrichment
+
+```{r}
+# Map to Gene names
+up <- UniProt.ws(taxId = 9606)
+
+res <- AnnotationDbi::select(
+    x = up,
+    keys = cluster_mems,
+    to = "Gene_Name"
+)
+
+# List of databases: View(listEnrichrDbs())
+dbs <- c("GO_Biological_Process_2023", "GO_Cellular_Component_2023", "GO_Molecular_Function_2023")
+enriched <- enrichr(res$To, dbs)
+g3 <- plotEnrich(enriched[[1]], showTerms = 5, numChar = 10, y = "Ratio", title = '')
+```
+
+
+

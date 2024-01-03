@@ -39,7 +39,10 @@ scp <- specht2019v3() # Load specific data set
 ```{r}
 # Subset same type of cells (cell type + batch)
 scp_sub <- getWithColData(scp, "proteins")
-scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
+
+scp_macro <- scp_sub[, scp_sub$SampleType == "Macrophage"]
+scp_mono <- scp_sub[, scp_sub$SampleType == "Monocyte"]
+
 dim(scp_sub) # check dimensions
 
 # Extract assay only
@@ -71,28 +74,67 @@ dim(df_CPM)
 cor_df <- cor(t(df_CPM[, ]), method = "pearson")
 ```
 
-# Missing Values
+# Missing Values by Features
 
 ```{r}
 # Missing Values
 scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                    name = "proteins_NA", fun = colMedians)
+                                   name = "proteins_NA", fun = colMedians,
+                                   na.rm = TRUE)
 
-# more than 99.99% missing
-scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.9999)
+# more than 96.5% missing
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
 
 prots <- setdiff(rownames(assay(scp[["proteins"]])), rownames(scp_NA[["proteins_NA"]]))
 length(prots)
 df_CPM <- assay(scp[["proteins"]])[prots, ]
 
-# Less than 96.5% missing
-scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
+# Less than 91% missing
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.91)
 prots <- rownames(scp_NA[["proteins_NA"]])
 length(prots)
 df_CPM <- assay(scp[["proteins"]])[prots, ]
 
 # Calculate correlations
 cor_df <- cor(t(df_CPM[, ]), method = "pearson")
+```
+
+# Missing Values by samples
+
+```{r}
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                   name = "proteins_NA", 
+                                   fun = colMedians, na.rm = TRUE)
+
+mtx <- assay(scp[["proteins_NA"]])
+
+df_WGCNA <- mtx[, colMeans(is.na(mtx)) > 0.8]
+
+dim(df_WGCNA)
+
+res <- rcorr(df_WGCNA, type = "pearson")
+cor_df <- res$r
+```
+
+
+```{r}
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                   name = "proteins_NA", 
+                                   fun = colMedians, na.rm = TRUE)
+
+mtx <- assay(scp[["proteins_NA"]])
+org_prots <- assay(scp[["proteins"]])
+
+df_WGCNA <- org_prots[rowMeans(is.na(mtx)) < 0.84, colMeans(is.na(mtx)) < 0.84]
+
+df_WGCNA <- org_prots[rowMeans(is.na(mtx)) > 0.84, colMeans(is.na(mtx)) > 0.84]
+
+res <- rcorr(t(org_prots), type = "pearson")
+cor_df <- res$r
+
+dim(df_WGCNA)
 ```
 
 # Order based on correlations

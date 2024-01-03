@@ -19,29 +19,33 @@ library(Hmisc)
 # Load Data
 
 ```{r}
-scp <- specht2019v3() # Load specific data set
+scp <- specht2019v3() # Load data set
+```
 
+# Cell Type + Batch
+
+```{r}
 # Subset same type of cells
 scp_sub <- getWithColData(scp, "proteins")
 scp_sub <- scp_sub[, scp_sub$SampleType == "Macrophage" & scp_sub$lcbatch == "LCB7"]
 dim(scp_sub) # check dimensions
-
 ```
 
-# NA effect in correlations
+# NA effect in correlations (by Features)
 
 ```{r}
 all_pNA <- DataFrame()
 
 for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
   scp_NA <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                    name = "proteins_NA", fun = colSums)
+                                    name = "proteins_NA", fun = colMedians,
+                                    na.rm = TRUE)
   
   scp_NA <- filterNA(scp_NA, i = "proteins_NA", pNA = i)
 
-  df <- assay(scp[["proteins"]])[rownames(scp_NA[["proteins_NA"]]), ]
+  df_NA <- assay(scp[["proteins"]])[rownames(scp_NA[["proteins_NA"]]), ]
   
-  cor_df <- rcorr(t(df[, ]), type = "pearson")
+  cor_df <- rcorr(t(df_NA[, ]), type = "pearson")
   
   diag(cor_df$r) <- NA
   diag(cor_df$P) <- NA
@@ -62,7 +66,7 @@ for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
 all_pNA <- as.data.frame(all_pNA)
 ```
 
-# Plots
+# Plot
 
 ```{r}
 # Filter
@@ -70,24 +74,61 @@ filtered_all_pNA <- all_pNA
 
 filtered_all_pNA <- all_pNA[all_pNA$p < 0.05, ]
 
-# Multiple plots
-ggplot(filtered_all_pNA, aes(x = r, groups = as.factor(pNA), col = as.factor(pNA))) +
-    geom_density(adjust = 1.5, alpha = .4) +
-    theme_classic()
-
-
-ggplot(filtered_all_pNA, aes(x = r, groups = as.factor(pNA), col = as.factor(pNA))) +
-    geom_histogram() +
-    facet_wrap(~pNA) +
-    theme_classic()
-
-ggplot(filtered_all_pNA, aes(x = as.factor(pNA), y = r, fill = as.factor(pNA))) + 
-    geom_boxplot() +
-    theme_classic()
-
+# Violin plot
 ggplot(filtered_all_pNA, aes(y = r, x = as.factor(pNA))) +
     geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
-    labs(x = "pNA Threshold", y = "Pearson Correlation")
+    labs(x = "pNA Threshold", y = "Pearson Correlation") +
+    theme_classic()
+```
+
+# NA effect in correlations (by Samples)
+
+```{r}
+# Missing Values
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                   name = "proteins_NA", 
+                                   fun = colMedians, na.rm = TRUE)
+all_sNA <- DataFrame()
+
+for (i in seq(from = 0.75, to = 0.83, by = 0.02)) {
+  mtx <- assay(scp[["proteins_NA"]])
+  
+  # Proportion of missing values
+  df_WGCNA <- mtx[, colMeans(is.na(mtx)) < i]
+  
+  cor_df <- rcorr(df_WGCNA, type = "pearson")
+
+  diag(cor_df$r) <- NA
+  diag(cor_df$P) <- NA
+  
+  cor_vals <- as.vector(cor_df$r)
+  cor_vals <- cor_vals[!is.na(cor_vals)]
+  
+  p_vals <- as.vector(cor_df$P)
+  p_vals <- p_vals[!is.na(p_vals)]
+  
+  df <- DataFrame(r = cor_vals,
+                  p = p_vals,
+                  sNA = rep.int(i, length(cor_vals)))
+  
+  all_sNA <- rbind(all_sNA, df)
+}
+
+all_sNA <- as.data.frame(all_sNA)
+```
+
+# Plot
+
+```{r}
+# Filter
+filtered_all_sNA <- all_sNA
+
+filtered_all_sNA <- all_sNA[all_sNA$p < 0.05, ]
+
+# Violin plot
+ggplot(filtered_all_sNA, aes(y = r, x = as.factor(sNA))) +
+    geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
+    labs(x = "sNA Threshold", y = "Pearson Correlation") +
     theme_classic()
 ```
 
@@ -104,7 +145,7 @@ for (i in seq(from = 0.1, to = 0.6, by = 0.1)) {
   # Highly Variable features
   var <- apply(df, 1, var)
   
-  df <- df[var < quantile(var, i), ]
+  df <- df[var >= quantile(var, i), ]
   
   cor_df <- rcorr(t(df[, ]), type = "pearson")
   
@@ -127,28 +168,16 @@ for (i in seq(from = 0.1, to = 0.6, by = 0.1)) {
 all_quantile <- as.data.frame(all_quantile)
 ```
 
-# Plots
+# Plot
 
 ```{r}
 filtered_all_quantile <- all_quantile
 
 filtered_all_quantile <- all_quantile[all_quantile$p < 0.05, ]
 
-# Multiple plots
-ggplot(filtered_all_quantile, aes(x = r, groups = as.factor(quant), col = as.factor(quant))) +
-    geom_density(adjust = 1.5, alpha = .4)
-
-ggplot(filtered_all_quantile, aes(x = r, groups = as.factor(quant), col = as.factor(quant))) +
-    geom_histogram() +
-    facet_wrap(~quant) +
-    theme_classic()
-
-ggplot(filtered_all_quantile, aes(x = as.factor(quant), y = r, fill = as.factor(quant))) + 
-    geom_boxplot() +
-    theme_classic()
-
+# Violin plot
 ggplot(filtered_all_quantile, aes(y = r, x = as.factor(quant))) +
     geom_violin(position = "dodge", alpha = 0.5, outlier.colour = "transparent") +
-    labs(x = "Least Variable Quantile", y = "Pearson Correlation")
+    labs(x = "Most Variable Quantile", y = "Pearson Correlation") +
     theme_classic()
 ```

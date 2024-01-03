@@ -71,7 +71,7 @@ dim(df_WGCNA)
 cor_df <- cor(t(df_WGCNA[, ]), method = "pearson")
 ```
 
-# Missing Values by features
+# Missing Values by Features
 
 ```{r}
 # Missing Values
@@ -79,15 +79,15 @@ scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein",
                                    name = "proteins_NA", 
                                    fun = colMedians, na.rm = TRUE)
 
-# more than 99.99% missing
-scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.9999)
+# more than 96.5% missing
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
 
 prots <- setdiff(rownames(assay(scp[["proteins"]])), rownames(scp_NA[["proteins_NA"]]))
 length(prots)
 df_WGCNA <- assay(scp[["proteins"]])[prots, ]
 
-# Less than 96.5% missing
-scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.965)
+# Less than 91% missing
+scp_NA <- filterNA(scp, i = "proteins_NA", pNA = 0.91)
 prots <- rownames(scp_NA[["proteins_NA"]])
 length(prots)
 df_WGCNA <- assay(scp[["proteins"]])[prots, ]
@@ -105,13 +105,19 @@ scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein",
                                    fun = colMedians, na.rm = TRUE)
 
 mtx <- assay(scp[["proteins_NA"]])
+org_prots <- assay(scp[["proteins"]])
 
-df_WGCNA <- mtx[, colMeans(is.na(mtx)) < 0.84]
+df_WGCNA <- org_prots[rowMeans(is.na(mtx)) < 0.84, colMeans(is.na(mtx)) < 0.84]
 
-res <- rcorr(df_WGCNA, type = "pearson")
+df_WGCNA <- org_prots[rowMeans(is.na(mtx)) > 0.84, colMeans(is.na(mtx)) > 0.84]
+
+res <- rcorr(t(df_WGCNA), type = "pearson")
 cor_df <- res$r
 
-hist(colMeans(is.na(mtx)))
+dim(df_WGCNA)
+# hist(colMeans(is.na(mtx)), breaks = 20)
+hist(rowMeans(is.na(mtx)), breaks = 30)
+
 ```
 
 # Module detection
@@ -128,7 +134,7 @@ dissTOM <- 1 - TOM
 geneTree <- hclust(as.dist(dissTOM), method = "average")
 
 #This sets the minimum number of genes to cluster into a module
-dynamicMods <- cutreeDynamic(geneTree, minClusterSize = 50)
+dynamicMods <- cutreeDynamic(geneTree, minClusterSize = 30)
 
 plotDendroAndColors(geneTree, labels2colors(dynamicMods),
                     c("Dynamic Tree Cut"),
@@ -142,8 +148,7 @@ clusters_WGCNA <- as.data.frame(dynamicMods)
 
 ```{r}
 table(clusters_WGCNA) # All clusters
-cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 3]
-
+cluster_members_WGCNA <- rownames(df_WGCNA)[clusters_WGCNA == 2]
 # Map to Gene names
 up <- UniProt.ws(taxId = 9606)
 
