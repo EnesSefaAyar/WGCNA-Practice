@@ -1,0 +1,142 @@
+---
+output: html_document
+editor_options: 
+chunk_output_type: console
+---
+
+# Install
+
+```{r. eval = FALSE}
+install.packages("textshape")
+install.packages("pheatmap")
+BiocManager::install("UniProt.ws")
+install.packages("enrichR")
+install.packages("dynamicTreeCut")
+install.packages('WGCNA')
+```
+
+# Import
+
+```{r}
+library(textshape)
+library(pheatmap)
+library(UniProt.ws)
+library(enrichR)
+library(scp)
+library(scpdata)
+library(dynamicTreeCut)
+library(Hmisc)
+library(WGCNA)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(reshape2)
+library(ggpubr)
+```
+
+# Load data
+
+```{r}
+# View(as.data.frame(scpdata())) # Available data sets
+scp <- specht2019v3() # Load specific data set
+```
+
+# Cell Type
+
+```{r}
+# Subset same type of cells (cell type)
+scp_sub <- getWithColData(scp, "proteins")
+scp_macro <- scp_sub[, scp_sub$SampleType == "Macrophage"]
+scp_mono <- scp_sub[, scp_sub$SampleType == "Monocyte"]
+
+# Calculate correlations
+cor_mono <- cor(t(assay(scp_mono)[, ]), method = "pearson")
+cor_macro <- cor(t(assay(scp_macro)[, ]), method = "pearson")
+```
+
+# Order Pathways
+
+```{r}
+paths <- read.csv("~/WGCNA-Practice/data/CPDB_pathways_genes.tab", sep = "\t")
+kegg_paths <- paths[paths$source == "KEGG", ]
+kegg_paths$hgnc_symbol_ids <- gsub("_HUMAN", "", kegg_paths$hgnc_symbol_ids)
+
+# Map to Gene names
+up <- UniProt.ws(taxId = 9606)
+
+res <- AnnotationDbi::select(
+    x = up,
+    keys = rownames(cor_macro),
+    to = "Gene_Name"
+)
+
+cor_mat <- cor_macro
+diag(cor_mat) <- 0
+path_cors <- DataFrame()
+for (i in 1:length(kegg_paths$external_id)) {
+  path <- kegg_paths$external_id[i]
+  mems <- unlist(strsplit(kegg_paths$hgnc_symbol_ids[i], ","))
+  mems <- mems[mems %in% res$To]
+  mems <- res$From[res$To %in% mems]
+  if (length(mems) > 0) {
+    s <- mean(abs(cor_mat[mems, mems]))
+    path_cors <- rbind(path_cors, DataFrame(pathway = i, score = s,
+                                            n = length(mems), members = paste(mems, collapse = ",")))
+  } 
+}
+path_cors <- as.data.frame(path_cors[order(path_cors$score, decreasing = TRUE), ])
+path_cors <- path_cors[path_cors$n > 2, ]
+```
+
+# Calculate Change in Modules
+
+```{r}
+df <- DataFrame()
+for (i in path_cors$pathway) {
+  cluster_mems <- unlist(strsplit(path_cors$members[path_cors$pathway == i], ","))
+  temp_mono <- cor_mono[cluster_mems, cluster_mems]
+  temp_macro <- cor_macro[cluster_mems, cluster_mems]
+  diff <- mean(abs(temp_mono - temp_macro))
+  df <- rbind(df, DataFrame(pathway = i, score = diff, n = length(cluster_mems)))
+}
+
+df <- df[order(abs(df$score), decreasing = TRUE), ]
+df <- df[df$n <= 30, ]
+```
+
+# Plot
+
+```{r}
+for (i in df$pathway) {
+  cluster_mems <- unlist(strsplit(path_cors$members[path_cors$pathway == i], ","))
+  path <- kegg_paths$pathway[i]
+  # Plot the heat-maps
+  temp <- cor_mono[cluster_mems, cluster_mems]
+  melted_temp <- melt(temp)
+  g1 <- ggplot(melted_temp, aes(x = Var1, y = Var2, fill = value)) + 
+    geom_tile(show.legend = FALSE) + geom_text(aes(label = round(value, 2)),
+                                               size = 2.3 - length(cluster_mems)/45) +
+    scale_fill_gradient2(low = "#4d72af", mid = "white", high = "#c44e53",
+                     midpoint = 0, breaks = seq(-1, 1, 0.25), limits = c(-1, 1)) + 
+    theme(axis.text.y = element_text(angle = 0, hjust = 1, 
+          size = 8 - length(cluster_mems)/45), axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+          axis.title.y = element_blank()) +
+    labs(title = "Monocyte")
+  temp <- cor_macro[cluster_mems, cluster_mems]
+  melted_temp <- melt(temp)
+  g2 <- ggplot(melted_temp, aes(x = Var1, y = Var2, fill = value)) + 
+    geom_tile(show.legend = FALSE) + geom_text(aes(label = round(value, 2)),
+                                               size = 2.3 - length(cluster_mems)/45) +
+    scale_fill_gradient2(low = "#4d72af", mid = "white", high = "#c44e53",
+                     midpoint = 0, breaks = seq(-1, 1, 0.25), limits = c(-1, 1)) + 
+    theme(axis.text.y = element_blank(),axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+          axis.title.y = element_blank())+
+    labs(title = "Macrophage")
+  g3 <- ggarrange(g1, g2, width = 50, height = 40) 
+    
+  annotate_figure(g3, top = text_grob(path, face = "bold", size = 14))
+  ggsave(paste0("~/WGCNA-Practice/output/diffSup/", i, ".pdf"))
+}
+```
