@@ -51,10 +51,13 @@ scp_mono <- scp_sub[, scp_sub$SampleType == "Monocyte"]
 
 # Calculate correlations
 cor_mono <- cor(t(assay(scp_mono)[, ]), method = "pearson")
+cor_mono <- cluster_matrix(cor_mono, dim = "both", method = "average")
+
 cor_macro <- cor(t(assay(scp_macro)[, ]), method = "pearson")
+cor_macro <- cluster_matrix(cor_macro, dim = "both", method = "average")
 ```
 
-# CPM
+# Identify Modules
 
 ```{r}
 dist_mono <- 1 - cor_mono
@@ -70,33 +73,11 @@ memberships_macro <- cutreeDynamic(tree_macro, distM = dist_macro, minClusterSiz
 memberships_macro <- as.data.frame(memberships_macro)
 ```
 
-# Order Modules
-
-```{r}
-eliminateMods <- function(cor_mat, clusters) {
-  df <- DataFrame()
-  diag(cor_mat) <- 0
-  col_name <- colnames(clusters)[1]
-  for (i in seq(from = min(clusters[[col_name]]), 
-           to = max(clusters[[col_name]]), 
-           by = 1)) {
-    cluster_members <- rownames(cor_mat)[clusters == i]
-    s <- mean(abs(cor_mat[cluster_members, cluster_members]))
-    df <- rbind(df, DataFrame(cluster = i, score = s, n = length(cluster_members)))
-  }
-  df <- df[order(df$score, decreasing = TRUE), ]
-  return (df)
-}
-
-new_class <- eliminateMods(cor_macro, memberships_macro)
-new_class <- new_class[new_class$n > 4, ]
-```
-
 # Calculate Change in Modules
 
 ```{r}
 df <- DataFrame()
-for (i in new_class$cluster) {
+for (i in unique(memberships_macro$memberships_macro)) {
   cluster_mems <- rownames(cor_macro)[memberships_macro == i]
   temp_mono <- cor_mono[cluster_mems, cluster_mems]
   temp_macro <- cor_macro[cluster_mems, cluster_mems]
@@ -105,7 +86,8 @@ for (i in new_class$cluster) {
 }
 
 df <- df[order(abs(df$score), decreasing = TRUE), ]
-df <- df[abs(df$score) > 0.1 & df$n <= 30, ]
+df <- df[df$n <= 30 & df$n > 2, ]
+df <- df[1:10, ]
 ```
 
 # Plot
@@ -144,24 +126,3 @@ for (i in 1:length(df$cluster)) {
   ggsave(paste0("~/WGCNA-Practice/output/diffUns/", i, ".pdf"))
 }
 ```
-
-# Enrichment
-
-```{r}
-# Map to Gene names
-up <- UniProt.ws(taxId = 9606)
-
-res <- AnnotationDbi::select(
-    x = up,
-    keys = cluster_mems,
-    to = "Gene_Name"
-)
-
-# List of databases: View(listEnrichrDbs())
-dbs <- c("GO_Biological_Process_2023", "GO_Cellular_Component_2023", "GO_Molecular_Function_2023")
-enriched <- enrichr(res$To, dbs)
-g3 <- plotEnrich(enriched[[1]], showTerms = 5, numChar = 10, y = "Ratio", title = '')
-```
-
-
-

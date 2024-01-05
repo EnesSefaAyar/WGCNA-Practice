@@ -51,10 +51,13 @@ scp_mono <- scp_sub[, scp_sub$SampleType == "Monocyte"]
 
 # Calculate correlations
 cor_mono <- cor(t(assay(scp_mono)[, ]), method = "pearson")
+cor_mono <- cluster_matrix(cor_mono, dim = "both", method = "average")
+
 cor_macro <- cor(t(assay(scp_macro)[, ]), method = "pearson")
+cor_macro <- cluster_matrix(cor_macro, dim = "both", method = "average")
 ```
 
-# Order Pathways
+# Pathways
 
 ```{r}
 paths <- read.csv("~/WGCNA-Practice/data/CPDB_pathways_genes.tab", sep = "\t")
@@ -69,46 +72,34 @@ res <- AnnotationDbi::select(
     keys = rownames(cor_macro),
     to = "Gene_Name"
 )
-
-cor_mat <- cor_macro
-diag(cor_mat) <- 0
-path_cors <- DataFrame()
-for (i in 1:length(kegg_paths$external_id)) {
-  path <- kegg_paths$external_id[i]
-  mems <- unlist(strsplit(kegg_paths$hgnc_symbol_ids[i], ","))
-  mems <- mems[mems %in% res$To]
-  mems <- res$From[res$To %in% mems]
-  if (length(mems) > 0) {
-    s <- mean(abs(cor_mat[mems, mems]))
-    path_cors <- rbind(path_cors, DataFrame(pathway = i, score = s,
-                                            n = length(mems), members = paste(mems, collapse = ",")))
-  } 
-}
-path_cors <- as.data.frame(path_cors[order(path_cors$score, decreasing = TRUE), ])
-path_cors <- path_cors[path_cors$n > 2, ]
 ```
 
-# Calculate Change in Modules
+# Calculate Mean Change in Modules
 
 ```{r}
 df <- DataFrame()
-for (i in path_cors$pathway) {
-  cluster_mems <- unlist(strsplit(path_cors$members[path_cors$pathway == i], ","))
+for (i in 1:length(kegg_paths$pathway)) {
+  cluster_mems <- unlist(strsplit(kegg_paths$hgnc_symbol_ids[i], ","))
+  cluster_mems <- cluster_mems[cluster_mems %in% res$To]
+  cluster_mems <- res$From[res$To %in% cluster_mems]
   temp_mono <- cor_mono[cluster_mems, cluster_mems]
   temp_macro <- cor_macro[cluster_mems, cluster_mems]
   diff <- mean(abs(temp_mono - temp_macro))
   df <- rbind(df, DataFrame(pathway = i, score = diff, n = length(cluster_mems)))
 }
-
 df <- df[order(abs(df$score), decreasing = TRUE), ]
-df <- df[df$n <= 30, ]
+
+df <- df[df$n <= 30 & df$n > 2 , ]
+df <- df[1:10, ]
 ```
 
 # Plot
 
 ```{r}
 for (i in df$pathway) {
-  cluster_mems <- unlist(strsplit(path_cors$members[path_cors$pathway == i], ","))
+  cluster_mems <- unlist(strsplit(kegg_paths$hgnc_symbol_ids[i], ","))
+  cluster_mems <- cluster_mems[cluster_mems %in% res$To]
+  cluster_mems <- res$From[res$To %in% cluster_mems]
   path <- kegg_paths$pathway[i]
   # Plot the heat-maps
   temp <- cor_mono[cluster_mems, cluster_mems]

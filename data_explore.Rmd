@@ -20,6 +20,9 @@ library(Hmisc)
 
 ```{r}
 scp <- specht2019v3() # Load data set
+scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
+                                    name = "proteins_NA", fun = colMedians,
+                                    na.rm = TRUE)
 ```
 
 # Cell Type + Batch
@@ -37,11 +40,7 @@ dim(scp_sub) # check dimensions
 all_pNA <- DataFrame()
 
 for (i in seq(from = 0.4, to = 0.9, by = 0.1)) {
-  scp_NA <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                    name = "proteins_NA", fun = colMedians,
-                                    na.rm = TRUE)
-  
-  scp_NA <- filterNA(scp_NA, i = "proteins_NA", pNA = i)
+  scp_NA <- filterNA(scp, i = "proteins_NA", pNA = i)
 
   df_NA <- assay(scp[["proteins"]])[rownames(scp_NA[["proteins_NA"]]), ]
   
@@ -85,18 +84,15 @@ ggplot(filtered_all_pNA, aes(y = r, x = as.factor(pNA))) +
 
 ```{r}
 # Missing Values
-scp <- aggregateFeaturesOverAssays(scp, i = "peptides", fcol = "protein", 
-                                   name = "proteins_NA", 
-                                   fun = colMedians, na.rm = TRUE)
 all_sNA <- DataFrame()
 
 for (i in seq(from = 0.75, to = 0.83, by = 0.02)) {
   mtx <- assay(scp[["proteins_NA"]])
   
   # Proportion of missing values
-  df_WGCNA <- mtx[, colMeans(is.na(mtx)) < i]
+  assay <- mtx[, colMeans(is.na(mtx)) < i]
   
-  cor_df <- rcorr(df_WGCNA, type = "pearson")
+  cor_df <- rcorr(assay, type = "pearson")
 
   diag(cor_df$r) <- NA
   diag(cor_df$P) <- NA
